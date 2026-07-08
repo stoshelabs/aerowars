@@ -17,7 +17,6 @@
   <img src="https://img.shields.io/badge/PlaceholderAPI-supported-1E90FF?style=flat-square" alt="PlaceholderAPI supported">
   <img src="https://img.shields.io/badge/TaleGuard-supported-1E90FF?style=flat-square" alt="TaleGuard supported">
   <img src="https://img.shields.io/badge/Economy-optional-1E90FF?style=flat-square" alt="Economy optional">
-  <img src="https://img.shields.io/badge/i18n-en__us%20%7C%20pt__br-1E90FF?style=flat-square" alt="i18n en_us | pt_br">
 </p>
 
 ---
