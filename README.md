@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/stoshelabs/aerowars/blob/main/aerowars.png" alt="AeroWars" width="720">
+  <img src="https://github.com/stoshelabs/aerowars/blob/main/aerowars.png?raw=true" alt="AeroWars" width="720">
 </p>
 
 <p align="center">
