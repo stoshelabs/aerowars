@@ -235,9 +235,4 @@ under `mods/Stoshe_AeroWars/lang/`.
 
 ---
 
-## Credits
-
-- **Authors:** [Stoshe Labs](https://github.com/stoshelabs) &amp; [Gustavo Will](https://github.com/gitgusilva)
-- **Website:** https://github.com/stoshelabs/aerowars
-
 <sub>Built for Hytale. Companion plugin: <a href="https://github.com/stoshelabs/taleguard">TaleGuard</a>.</sub>
