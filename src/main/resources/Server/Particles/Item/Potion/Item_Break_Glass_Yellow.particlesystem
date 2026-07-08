@@ -1,0 +1,10 @@
+{
+  "Spawners": [
+    {
+      "SpawnerId": "Item_Break_GlassPotion_Shards_Yellow"
+    },
+    {
+      "SpawnerId": "Item_Break_GlassPotion_Shards_Erosion_Yellow"
+    }
+  ]
+}

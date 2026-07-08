@@ -1,0 +1,14 @@
+items.Glass_Block.name = Vidro
+items.Glass_Block.description = Um bloco de vidro transparente.
+items.Glass_Block_Red.name = Vidro Vermelho
+items.Glass_Block_Orange.name = Vidro Laranja
+items.Glass_Block_Yellow.name = Vidro Amarelo
+items.Glass_Block_Lime.name = Vidro Verde-Limão
+items.Glass_Block_Green.name = Vidro Verde
+items.Glass_Block_Cyan.name = Vidro Ciano
+items.Glass_Block_Blue.name = Vidro Azul
+items.Glass_Block_Purple.name = Vidro Roxo
+items.Glass_Block_Pink.name = Vidro Rosa
+items.Glass_Block_Magenta.name = Vidro Magenta
+items.Glass_Block_White.name = Vidro Branco
+items.Glass_Block_Black.name = Vidro Preto

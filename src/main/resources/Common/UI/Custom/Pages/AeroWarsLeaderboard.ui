@@ -1,0 +1,60 @@
+$C = "../AeroWarsUI.ui";
+$Sounds = "../AeroWarsSounds.ui";
+
+$C.@PageOverlay {}
+
+$C.@Container {
+  Anchor: (Width: 660, Height: 610);
+
+  #Title { $C.@Title #LbTitle { @Text = "LEADERBOARD"; } }
+
+  #Content {
+    LayoutMode: Top;
+    Padding: (Top: 16, Bottom: 16, Left: 18, Right: 18);
+
+    Group { Anchor: (Horizontal: 0, Height: 32, Bottom: 10); LayoutMode: Left;
+      $C.@SmallSecondaryTextButton #LbKills { @Anchor = (Width: 110, Vertical: 0); Text: "Kills"; }
+      Group { Anchor: (Width: 6); }
+      $C.@SmallSecondaryTextButton #LbWins { @Anchor = (Width: 110, Vertical: 0); Text: "Wins"; }
+      Group { Anchor: (Width: 12); }
+      Label #LbMetricLabel { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #7ac0ff, RenderBold: true, VerticalAlignment: Center); Text: ""; }
+    }
+
+    Group { Anchor: (Horizontal: 0, Height: 82, Bottom: 12); LayoutMode: Left;
+        Group #LbPod1 { FlexWeight: 1; Anchor: (Vertical: 0, Height: 82); LayoutMode: Top; Background: (Color: #16233b); Padding: (Left: 8, Right: 8, Top: 8, Bottom: 8); Label { Anchor: (Horizontal: 0, Height: 20); Style: (...$C.@DefaultLabelStyle, FontSize: 18, TextColor: #ffd54a, RenderBold: true, HorizontalAlignment: Center); Text: "#1"; } Label #LbPod1Name { Anchor: (Horizontal: 0, Height: 18, Top: 4); Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff, RenderBold: true, HorizontalAlignment: Center); Text: "-"; } Label #LbPod1Val { Anchor: (Horizontal: 0, Height: 18, Top: 2); Style: (...$C.@DefaultLabelStyle, FontSize: 14, TextColor: #ffd54a, RenderBold: true, HorizontalAlignment: Center); Text: "0"; } }
+        Group { Anchor: (Width: 8); }
+        Group #LbPod2 { FlexWeight: 1; Anchor: (Vertical: 0, Height: 82); LayoutMode: Top; Background: (Color: #16233b); Padding: (Left: 8, Right: 8, Top: 8, Bottom: 8); Label { Anchor: (Horizontal: 0, Height: 20); Style: (...$C.@DefaultLabelStyle, FontSize: 18, TextColor: #cfd8e0, RenderBold: true, HorizontalAlignment: Center); Text: "#2"; } Label #LbPod2Name { Anchor: (Horizontal: 0, Height: 18, Top: 4); Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff, RenderBold: true, HorizontalAlignment: Center); Text: "-"; } Label #LbPod2Val { Anchor: (Horizontal: 0, Height: 18, Top: 2); Style: (...$C.@DefaultLabelStyle, FontSize: 14, TextColor: #cfd8e0, RenderBold: true, HorizontalAlignment: Center); Text: "0"; } }
+        Group { Anchor: (Width: 8); }
+        Group #LbPod3 { FlexWeight: 1; Anchor: (Vertical: 0, Height: 82); LayoutMode: Top; Background: (Color: #16233b); Padding: (Left: 8, Right: 8, Top: 8, Bottom: 8); Label { Anchor: (Horizontal: 0, Height: 20); Style: (...$C.@DefaultLabelStyle, FontSize: 18, TextColor: #d8974a, RenderBold: true, HorizontalAlignment: Center); Text: "#3"; } Label #LbPod3Name { Anchor: (Horizontal: 0, Height: 18, Top: 4); Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff, RenderBold: true, HorizontalAlignment: Center); Text: "-"; } Label #LbPod3Val { Anchor: (Horizontal: 0, Height: 18, Top: 2); Style: (...$C.@DefaultLabelStyle, FontSize: 14, TextColor: #d8974a, RenderBold: true, HorizontalAlignment: Center); Text: "0"; } }
+    }
+
+    Group { Anchor: (Horizontal: 0, Height: 34, Bottom: 8); LayoutMode: Left;
+      $C.@TextField #LbSearchField { @Anchor = (Vertical: 0); FlexWeight: 1; }
+      Group { Anchor: (Width: 8); }
+      $C.@SmallSecondaryTextButton #LbSearchBtn { @Anchor = (Width: 120, Vertical: 0); Text: "Search"; }
+    }
+
+    Label #LbEmpty { Anchor: (Horizontal: 0, Height: 18, Bottom: 4); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #d6a6a6); Text: ""; Visible: false; }
+
+    Group { Anchor: (Horizontal: 0, Bottom: 8); FlexWeight: 1; LayoutMode: TopScrolling; ScrollbarStyle: $C.@DefaultScrollbarStyle;
+      Group #LbRow0 { Anchor: (Height: 30, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #1b2740); Padding: (Left: 12, Right: 12); Visible: false; Label #LbRank0 { Anchor: (Height: 18, Vertical: 0, Width: 46); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #8fa4bc, RenderBold: true, VerticalAlignment: Center); Text: ""; } Label #LbName0 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Label #LbVal0 { Anchor: (Height: 18, Vertical: 0, Width: 210); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #9dc8ff, HorizontalAlignment: End, VerticalAlignment: Center); Text: ""; } }
+      Group #LbRow1 { Anchor: (Height: 30, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #1b2740); Padding: (Left: 12, Right: 12); Visible: false; Label #LbRank1 { Anchor: (Height: 18, Vertical: 0, Width: 46); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #8fa4bc, RenderBold: true, VerticalAlignment: Center); Text: ""; } Label #LbName1 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Label #LbVal1 { Anchor: (Height: 18, Vertical: 0, Width: 210); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #9dc8ff, HorizontalAlignment: End, VerticalAlignment: Center); Text: ""; } }
+      Group #LbRow2 { Anchor: (Height: 30, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #1b2740); Padding: (Left: 12, Right: 12); Visible: false; Label #LbRank2 { Anchor: (Height: 18, Vertical: 0, Width: 46); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #8fa4bc, RenderBold: true, VerticalAlignment: Center); Text: ""; } Label #LbName2 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Label #LbVal2 { Anchor: (Height: 18, Vertical: 0, Width: 210); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #9dc8ff, HorizontalAlignment: End, VerticalAlignment: Center); Text: ""; } }
+      Group #LbRow3 { Anchor: (Height: 30, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #1b2740); Padding: (Left: 12, Right: 12); Visible: false; Label #LbRank3 { Anchor: (Height: 18, Vertical: 0, Width: 46); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #8fa4bc, RenderBold: true, VerticalAlignment: Center); Text: ""; } Label #LbName3 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Label #LbVal3 { Anchor: (Height: 18, Vertical: 0, Width: 210); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #9dc8ff, HorizontalAlignment: End, VerticalAlignment: Center); Text: ""; } }
+      Group #LbRow4 { Anchor: (Height: 30, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #1b2740); Padding: (Left: 12, Right: 12); Visible: false; Label #LbRank4 { Anchor: (Height: 18, Vertical: 0, Width: 46); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #8fa4bc, RenderBold: true, VerticalAlignment: Center); Text: ""; } Label #LbName4 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Label #LbVal4 { Anchor: (Height: 18, Vertical: 0, Width: 210); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #9dc8ff, HorizontalAlignment: End, VerticalAlignment: Center); Text: ""; } }
+      Group #LbRow5 { Anchor: (Height: 30, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #1b2740); Padding: (Left: 12, Right: 12); Visible: false; Label #LbRank5 { Anchor: (Height: 18, Vertical: 0, Width: 46); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #8fa4bc, RenderBold: true, VerticalAlignment: Center); Text: ""; } Label #LbName5 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Label #LbVal5 { Anchor: (Height: 18, Vertical: 0, Width: 210); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #9dc8ff, HorizontalAlignment: End, VerticalAlignment: Center); Text: ""; } }
+      Group #LbRow6 { Anchor: (Height: 30, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #1b2740); Padding: (Left: 12, Right: 12); Visible: false; Label #LbRank6 { Anchor: (Height: 18, Vertical: 0, Width: 46); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #8fa4bc, RenderBold: true, VerticalAlignment: Center); Text: ""; } Label #LbName6 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Label #LbVal6 { Anchor: (Height: 18, Vertical: 0, Width: 210); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #9dc8ff, HorizontalAlignment: End, VerticalAlignment: Center); Text: ""; } }
+      Group #LbRow7 { Anchor: (Height: 30, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #1b2740); Padding: (Left: 12, Right: 12); Visible: false; Label #LbRank7 { Anchor: (Height: 18, Vertical: 0, Width: 46); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #8fa4bc, RenderBold: true, VerticalAlignment: Center); Text: ""; } Label #LbName7 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Label #LbVal7 { Anchor: (Height: 18, Vertical: 0, Width: 210); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #9dc8ff, HorizontalAlignment: End, VerticalAlignment: Center); Text: ""; } }
+    }
+
+    Group { Anchor: (Horizontal: 0, Height: 36); LayoutMode: Left;
+      $C.@SmallSecondaryTextButton #LbPrev { @Anchor = (Width: 90, Vertical: 0); Text: "<"; }
+      Group { Anchor: (Width: 8); }
+      Label #LbPageLabel { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #cbd9e8, HorizontalAlignment: Center, VerticalAlignment: Center); Text: ""; }
+      Group { Anchor: (Width: 8); }
+      $C.@SmallSecondaryTextButton #LbNext { @Anchor = (Width: 90, Vertical: 0); Text: ">"; }
+      Group { Anchor: (Width: 12); }
+      $C.@SecondaryTextButton #LbClose { @Sounds = $Sounds.@ButtonsLight; @Anchor = (Width: 120, Vertical: 0); Text: "Close"; }
+    }
+  }
+}

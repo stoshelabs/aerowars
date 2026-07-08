@@ -1,0 +1,60 @@
+$C = "../AeroWarsUI.ui";
+$Sounds = "../AeroWarsSounds.ui";
+
+$C.@PageOverlay {}
+
+$C.@Container {
+  Anchor: (Width: 620, Height: 560);
+
+  #Title {
+    $C.@Title #SpecTitle { @Text = "LIVING PLAYERS"; }
+  }
+
+  #Content {
+    LayoutMode: Top;
+    Padding: (Top: 16, Bottom: 16, Left: 18, Right: 18);
+
+    Label #SpecSubtitle {
+      Anchor: (Horizontal: 0, Height: 18, Bottom: 8);
+      Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #b2c1d0);
+      Text: "";
+    }
+
+    Label #SpecCountLabel {
+      Anchor: (Horizontal: 0, Height: 18, Bottom: 6);
+      Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #cbd9e8);
+      Text: "Alive: 0";
+    }
+
+    Label #SpecEmptyLabel {
+      Anchor: (Horizontal: 0, Height: 18, Bottom: 8);
+      Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #d6a6a6);
+      Text: "No living players.";
+      Visible: false;
+    }
+
+    Group {
+      Anchor: (Horizontal: 0, Bottom: 10);
+      FlexWeight: 1;
+      LayoutMode: TopScrolling;
+      ScrollbarStyle: $C.@DefaultScrollbarStyle;
+
+      Group #SpecRow0 { Anchor: (Height: 34, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 10, Right: 10); Visible: false; Label #SpecName0 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 8); } $C.@SmallSecondaryTextButton #SpecAction0 { @Anchor = (Width: 120, Height: 28); Text: "Teleport"; } }
+      Group #SpecRow1 { Anchor: (Height: 34, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 10, Right: 10); Visible: false; Label #SpecName1 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 8); } $C.@SmallSecondaryTextButton #SpecAction1 { @Anchor = (Width: 120, Height: 28); Text: "Teleport"; } }
+      Group #SpecRow2 { Anchor: (Height: 34, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 10, Right: 10); Visible: false; Label #SpecName2 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 8); } $C.@SmallSecondaryTextButton #SpecAction2 { @Anchor = (Width: 120, Height: 28); Text: "Teleport"; } }
+      Group #SpecRow3 { Anchor: (Height: 34, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 10, Right: 10); Visible: false; Label #SpecName3 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 8); } $C.@SmallSecondaryTextButton #SpecAction3 { @Anchor = (Width: 120, Height: 28); Text: "Teleport"; } }
+      Group #SpecRow4 { Anchor: (Height: 34, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 10, Right: 10); Visible: false; Label #SpecName4 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 8); } $C.@SmallSecondaryTextButton #SpecAction4 { @Anchor = (Width: 120, Height: 28); Text: "Teleport"; } }
+      Group #SpecRow5 { Anchor: (Height: 34, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 10, Right: 10); Visible: false; Label #SpecName5 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 8); } $C.@SmallSecondaryTextButton #SpecAction5 { @Anchor = (Width: 120, Height: 28); Text: "Teleport"; } }
+      Group #SpecRow6 { Anchor: (Height: 34, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 10, Right: 10); Visible: false; Label #SpecName6 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 8); } $C.@SmallSecondaryTextButton #SpecAction6 { @Anchor = (Width: 120, Height: 28); Text: "Teleport"; } }
+      Group #SpecRow7 { Anchor: (Height: 34, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 10, Right: 10); Visible: false; Label #SpecName7 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 8); } $C.@SmallSecondaryTextButton #SpecAction7 { @Anchor = (Width: 120, Height: 28); Text: "Teleport"; } }
+      Group #SpecRow8 { Anchor: (Height: 34, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 10, Right: 10); Visible: false; Label #SpecName8 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 8); } $C.@SmallSecondaryTextButton #SpecAction8 { @Anchor = (Width: 120, Height: 28); Text: "Teleport"; } }
+      Group #SpecRow9 { Anchor: (Height: 34, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 10, Right: 10); Visible: false; Label #SpecName9 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 8); } $C.@SmallSecondaryTextButton #SpecAction9 { @Anchor = (Width: 120, Height: 28); Text: "Teleport"; } }
+    }
+
+    $C.@SecondaryTextButton #SpecCloseButton {
+      @Sounds = $Sounds.@ButtonsCancel;
+      @Anchor = (Height: 36, Bottom: 4);
+      Text: "Close";
+    }
+  }
+}

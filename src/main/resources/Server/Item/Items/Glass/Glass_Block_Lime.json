@@ -1,0 +1,54 @@
+{
+  "Categories": [
+    "Blocks.Structural"
+  ],
+  "PlayerAnimationsId": "Block",
+  "BlockType": {
+    "DrawType": "Cube",
+    "Opacity": "Transparent",
+    "HitboxType": "Full",
+    "BlockParticleSetId": "GlassEmpty_Lime",
+    "BlockSoundSetId": "Glass",
+    "RequiresAlphaBlending": true,
+    "SupportDropType": "Break",
+    "Material": "Solid",
+    "CubeShadingMode": "Standard",
+    "Textures": [
+      {
+        "All": "BlockTextures/glass_block_lime.png"
+      }
+    ],
+    "Gathering": {
+      "Breaking": {
+        "GatherType": "GlassBlock",
+        "Quantity": 0
+      }
+    }
+  },
+  "Tags": {
+    "Type": [
+      "Glass"
+    ]
+  },
+  "IconProperties": {
+    "Scale": 0.58823,
+    "Rotation": [
+      22.5,
+      45,
+      22.5
+    ],
+    "Translation": [
+      0,
+      -13.5
+    ]
+  },
+  "MaxStack": 100,
+  "Icon": "Icons/ItemsGenerated/Glass_Block_Lime.png",
+  "RenderDeployablePreview": false,
+  "ClipsGeometry": false,
+  "TranslationProperties": {
+    "Name": "glass.items.Glass_Block_Lime.name",
+    "Description": "glass.items.Glass_Block.description"
+  },
+  "ItemLevel": 3
+}

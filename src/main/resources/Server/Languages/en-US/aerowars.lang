@@ -1,0 +1,7 @@
+items.AeroWars_SpecTracker.name = Player Tracker
+items.AeroWars_SpecTracker.description = Left or right click a block to open the tracker and teleport to living players.
+items.AeroWars_SpecLobby.name = Return to Lobby
+items.AeroWars_SpecLobby.description = Left or right click a block to leave the match and return to the lobby.
+
+items.AeroWars_SetupWand.name = AeroWars Setup Wand
+items.AeroWars_SetupWand.description = Left-click a block to mark a spawn point. Right-click near one to remove it.

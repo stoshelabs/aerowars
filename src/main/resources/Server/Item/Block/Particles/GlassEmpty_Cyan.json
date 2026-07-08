@@ -1,0 +1,9 @@
+{
+  "Particles": {
+    "Hit": "Item_Break_Glass_Cyan",
+    "Break": "Item_Break_Glass_Cyan",
+    "Sprint": "Item_Break_Glass_Cyan",
+    "SoftLand": "Item_Break_Glass_Cyan",
+    "HardLand": "Item_Break_Glass_Cyan"
+  }
+}

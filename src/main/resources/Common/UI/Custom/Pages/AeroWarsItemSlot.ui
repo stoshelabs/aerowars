@@ -1,0 +1,16 @@
+// Reusable inventory/kit slot: a clickable button rendering a real item icon (ItemSlot.ItemId) + quantity.
+Group #SlotRoot {
+  Anchor: (Width: 40, Height: 40);
+  Padding: 1;
+  Group #SelectedBg { Anchor: (Full: 0); Background: (Color: #55ccff55); Visible: false; }
+  ItemSlotButton #SlotButton {
+    Anchor: (Full: 0);
+    Style: (
+      Default: (Background: #1b2740),
+      Hovered: (Background: #26344f),
+      Pressed: (Background: #2f6fb0)
+    );
+    ItemSlot #SlotItem { Anchor: (Full: 0); Padding: 4; }
+    Label #SlotQuantity { Anchor: (Right: 3, Bottom: 1); Style: (FontSize: 10, TextColor: #ffffff, RenderBold: true, HorizontalAlignment: End, VerticalAlignment: End); Text: ""; }
+  }
+}

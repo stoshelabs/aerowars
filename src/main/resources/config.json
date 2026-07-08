@@ -1,0 +1,126 @@
+{
+  "//": "AeroWars configuration. Lines with the '//' key are comments and are ignored.",
+
+  "General": {
+    "//": "Language file to use from the lang/ folder (en_us, pt_br, ...).",
+    "Language": "pt_br",
+    "AutoSaveIntervalSeconds": 300,
+    "//LobbyWorld": "World players are returned to when a match ends or they leave.",
+    "LobbyWorld": "world",
+    "//LobbySpawn": "Optional 'x,y,z,yaw,pitch' lobby spawn; empty = world default spawn.",
+    "LobbySpawn": "",
+    "//Prefix": "Chat prefix for plugin messages (branding). PrefixEnabled=false removes it entirely; edit Prefix to rebrand. Supports {#RRGGBB} color tags.",
+    "PrefixEnabled": true,
+    "Prefix": "{#55ccff}[AeroWars] {#ffffff}"
+  },
+
+  "Setup": {
+    "//SpawnWand": "Ferramenta dada ao admin no setup; left-click num bloco marca spawn, botão direito remove. Deve ser uma ferramenta de quebrar (não arma). Fica travada no inventário até finalizar.",
+    "SpawnWand": "AeroWars_SetupWand"
+  },
+
+  "Match": {
+    "//": "Global match tuning. Per-arena min/max players come from the arena's spawn count.",
+    "MinPlayers": 2,
+    "MaxDurationSeconds": 900,
+    "CountdownSeconds": 15,
+    "StartGraceSeconds": 3,
+    "EndCelebrationSeconds": 30,
+    "EmptyMatchDeletionSeconds": 30,
+    "//FriendlyFire": "Only relevant for TEAMS arenas.",
+    "FriendlyFire": false,
+    "AllowSpectators": true,
+    "//SpectateOnDeath": "Dead players become spectators instead of being removed.",
+    "SpectateOnDeath": true,
+    "//SaveInventory": "Ao entrar na partida: salva inventário + gamemode e limpa; ao sair/finalizar, restaura. Jogadores entram em modo Adventure.",
+    "SaveInventory": true
+  },
+
+  "Cages": {
+    "//": "Glass/barrier cages that hold players on their island during the countdown.",
+    "Enabled": true,
+    "BlockId": "Glass_Block",
+    "Radius": 1,
+    "Height": 2
+  },
+
+  "Loot": {
+    "//": "Chest loot. Loot tables are defined in loot.json in the plugin data folder.",
+    "//FillOnStart": "Fill every chest once when the match starts (the initial loot; not an 'event').",
+    "FillOnStart": true,
+    "Events": {
+      "//": "Unified in-match events. Each entry has a Type and a Time (seconds since the match started). Type 'refill' re-rolls every chest; 'loot_upgrade' upgrades a growing share of common chests to MIDDLE loot and refills. Add/remove entries freely.",
+      "//Randomize": "When true, each event's Time is IGNORED and the enabled events fire at random moments, in random order, spread across the match — always inside the match duration and never closer than MinGapSeconds (so nothing fires too fast). When false, events fire at their Time.",
+      "Enabled": true,
+      "Randomize": false,
+      "MinGapSeconds": 90,
+      "List": [
+        { "Type": "loot_upgrade", "Time": 300, "Enabled": true },
+        { "Type": "refill", "Time": 480, "Enabled": true },
+        { "Type": "loot_upgrade", "Time": 660, "Enabled": true }
+      ]
+    }
+  },
+
+  "Kits": {
+    "Enabled": true,
+    "DefaultKit": "warrior",
+    "//SelectionDuringCountdown": "Let players open the kit menu while waiting/counting down.",
+    "SelectionDuringCountdown": true
+  },
+
+  "Rewards": {
+    "//WinnerCommands": "Run by console on win. {player} = winner name, {arena} = arena.",
+    "WinnerCommands": [
+      "broadcast &6{player} {#ffffff}venceu a partida em &e{arena}&f!"
+    ],
+    "//Economy": "Pays coins on kill/win via an installed economy plugin (overworld economy, EliteEssentials, Ecotale). No-op if none is present.",
+    "Economy": {
+      "Enabled": false,
+      "WinAmount": 100,
+      "KillAmount": 10
+    }
+  },
+
+  "Scoreboard": {
+    "Enabled": true,
+    "Footer": "{#55ccff}stoshe.dev"
+  },
+
+  "Hud": {
+    "Enabled": true
+  },
+
+  "Party": {
+    "Enabled": true,
+    "MaxSize": 4,
+    "InviteExpirySeconds": 60,
+    "//KeepTogetherByDefault": "Default of a party's 'keep together' preference (leaders toggle it in the party menu). ON = only join matches where the whole party fits one team, never split (leader is told if no arena fits); OFF = an oversized party is split, overflow members randomly moved to other teams.",
+    "KeepTogetherByDefault": false
+  },
+
+  "//Platform": "Spawn platform built into a freshly created void template world (/aerowars world create). Size is clamped odd; keep <= 15 so it stays inside the preloaded spawn chunk.",
+  "Platform": {
+    "Block": "Rock_Stone",
+    "Size": 9,
+    "Height": 100
+  },
+
+  "//Spectator": "Hypixel-style spectator hotbar given on death: a living-player tracker (opens a teleport modal) and a return-to-lobby item. Slots are 0-8; items are locked in place and removed when leaving.",
+  "Spectator": {
+    "Enabled": true,
+    "TrackerSlot": 0,
+    "TrackerItem": "AeroWars_SpecTracker",
+    "LobbySlot": 8,
+    "LobbyItem": "AeroWars_SpecLobby"
+  },
+
+  "//Database": "Optional SQL persistence for stats/leaderboards (HikariCP, like Plots). Driver chosen by JdbcUrl (sqlite/mysql/mariadb/postgres). Drivers are NOT bundled — drop HikariCP + the JDBC driver on the server classpath; otherwise it falls back to stats.json. A bare 'jdbc:sqlite:aerowars.db' resolves under the plugin data dir.",
+  "Database": {
+    "Enabled": false,
+    "JdbcUrl": "jdbc:sqlite:aerowars.db",
+    "Username": "",
+    "Password": "",
+    "MaxPoolSize": 10
+  }
+}

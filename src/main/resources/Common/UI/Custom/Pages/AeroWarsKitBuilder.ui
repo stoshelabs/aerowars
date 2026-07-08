@@ -1,0 +1,50 @@
+$C = "../AeroWarsUI.ui";
+$Sounds = "../AeroWarsSounds.ui";
+
+$C.@PageOverlay {}
+
+$C.@Container {
+  Anchor: (Width: 640, Height: 640);
+
+  #Title { $C.@Title #KitBuilderTitle { @Text = "KIT BUILDER"; } }
+
+  #Content {
+    LayoutMode: Top;
+    Padding: (Top: 14, Bottom: 14, Left: 18, Right: 18);
+
+    // ---- name row ----
+    Group { Anchor: (Horizontal: 0, Height: 34, Bottom: 10); LayoutMode: Left;
+      Label #KbNameLabel { Anchor: (Width: 120, Vertical: 0); Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #cbd9e8, VerticalAlignment: Center); Text: ""; }
+      $C.@TextField #KbNameField { @Anchor = (Vertical: 0); FlexWeight: 1; }
+    }
+
+    // ---- kit contents ----
+    Label #KbKitLabel { Anchor: (Horizontal: 0, Height: 18, Bottom: 4); Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #7ac0ff, RenderBold: true); Text: ""; }
+    Label #KbKitHint { Anchor: (Horizontal: 0, Height: 14, Bottom: 6); Style: (...$C.@DefaultLabelStyle, FontSize: 11, TextColor: #8b93a7); Text: ""; }
+    Group { Anchor: (Horizontal: 0, Height: 190, Bottom: 10); LayoutMode: Top;
+        Group { Anchor: (Horizontal: 0, Height: 44, Bottom: 2); LayoutMode: Left; Group #KitSlot0 { Anchor: (Width: 42, Height: 42); } Group #KitSlot1 { Anchor: (Width: 42, Height: 42); } Group #KitSlot2 { Anchor: (Width: 42, Height: 42); } Group #KitSlot3 { Anchor: (Width: 42, Height: 42); } Group #KitSlot4 { Anchor: (Width: 42, Height: 42); } Group #KitSlot5 { Anchor: (Width: 42, Height: 42); } }
+        Group { Anchor: (Horizontal: 0, Height: 44, Bottom: 2); LayoutMode: Left; Group #KitSlot6 { Anchor: (Width: 42, Height: 42); } Group #KitSlot7 { Anchor: (Width: 42, Height: 42); } Group #KitSlot8 { Anchor: (Width: 42, Height: 42); } Group #KitSlot9 { Anchor: (Width: 42, Height: 42); } Group #KitSlot10 { Anchor: (Width: 42, Height: 42); } Group #KitSlot11 { Anchor: (Width: 42, Height: 42); } }
+        Group { Anchor: (Horizontal: 0, Height: 44, Bottom: 2); LayoutMode: Left; Group #KitSlot12 { Anchor: (Width: 42, Height: 42); } Group #KitSlot13 { Anchor: (Width: 42, Height: 42); } Group #KitSlot14 { Anchor: (Width: 42, Height: 42); } Group #KitSlot15 { Anchor: (Width: 42, Height: 42); } Group #KitSlot16 { Anchor: (Width: 42, Height: 42); } Group #KitSlot17 { Anchor: (Width: 42, Height: 42); } }
+        Group { Anchor: (Horizontal: 0, Height: 44, Bottom: 2); LayoutMode: Left; Group #KitSlot18 { Anchor: (Width: 42, Height: 42); } Group #KitSlot19 { Anchor: (Width: 42, Height: 42); } Group #KitSlot20 { Anchor: (Width: 42, Height: 42); } Group #KitSlot21 { Anchor: (Width: 42, Height: 42); } Group #KitSlot22 { Anchor: (Width: 42, Height: 42); } Group #KitSlot23 { Anchor: (Width: 42, Height: 42); } }
+    }
+
+    // ---- your inventory ----
+    Label #KbInvLabel { Anchor: (Horizontal: 0, Height: 18, Bottom: 4); Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #7ac0ff, RenderBold: true); Text: ""; }
+    Label #KbInvHint { Anchor: (Horizontal: 0, Height: 14, Bottom: 6); Style: (...$C.@DefaultLabelStyle, FontSize: 11, TextColor: #8b93a7); Text: ""; }
+    Group { Anchor: (Horizontal: 0, Bottom: 10); FlexWeight: 1; LayoutMode: TopScrolling; ScrollbarStyle: $C.@DefaultScrollbarStyle;
+        Group { Anchor: (Horizontal: 0, Height: 44, Bottom: 2); LayoutMode: Left; Group #InvSlot0 { Anchor: (Width: 42, Height: 42); } Group #InvSlot1 { Anchor: (Width: 42, Height: 42); } Group #InvSlot2 { Anchor: (Width: 42, Height: 42); } Group #InvSlot3 { Anchor: (Width: 42, Height: 42); } Group #InvSlot4 { Anchor: (Width: 42, Height: 42); } Group #InvSlot5 { Anchor: (Width: 42, Height: 42); } Group #InvSlot6 { Anchor: (Width: 42, Height: 42); } Group #InvSlot7 { Anchor: (Width: 42, Height: 42); } Group #InvSlot8 { Anchor: (Width: 42, Height: 42); } }
+        Group { Anchor: (Horizontal: 0, Height: 44, Bottom: 2); LayoutMode: Left; Group #InvSlot9 { Anchor: (Width: 42, Height: 42); } Group #InvSlot10 { Anchor: (Width: 42, Height: 42); } Group #InvSlot11 { Anchor: (Width: 42, Height: 42); } Group #InvSlot12 { Anchor: (Width: 42, Height: 42); } Group #InvSlot13 { Anchor: (Width: 42, Height: 42); } Group #InvSlot14 { Anchor: (Width: 42, Height: 42); } Group #InvSlot15 { Anchor: (Width: 42, Height: 42); } Group #InvSlot16 { Anchor: (Width: 42, Height: 42); } Group #InvSlot17 { Anchor: (Width: 42, Height: 42); } }
+        Group { Anchor: (Horizontal: 0, Height: 44, Bottom: 2); LayoutMode: Left; Group #InvSlot18 { Anchor: (Width: 42, Height: 42); } Group #InvSlot19 { Anchor: (Width: 42, Height: 42); } Group #InvSlot20 { Anchor: (Width: 42, Height: 42); } Group #InvSlot21 { Anchor: (Width: 42, Height: 42); } Group #InvSlot22 { Anchor: (Width: 42, Height: 42); } Group #InvSlot23 { Anchor: (Width: 42, Height: 42); } Group #InvSlot24 { Anchor: (Width: 42, Height: 42); } Group #InvSlot25 { Anchor: (Width: 42, Height: 42); } Group #InvSlot26 { Anchor: (Width: 42, Height: 42); } }
+        Group { Anchor: (Horizontal: 0, Height: 44, Bottom: 2); LayoutMode: Left; Group #InvSlot27 { Anchor: (Width: 42, Height: 42); } Group #InvSlot28 { Anchor: (Width: 42, Height: 42); } Group #InvSlot29 { Anchor: (Width: 42, Height: 42); } Group #InvSlot30 { Anchor: (Width: 42, Height: 42); } Group #InvSlot31 { Anchor: (Width: 42, Height: 42); } Group #InvSlot32 { Anchor: (Width: 42, Height: 42); } Group #InvSlot33 { Anchor: (Width: 42, Height: 42); } Group #InvSlot34 { Anchor: (Width: 42, Height: 42); } Group #InvSlot35 { Anchor: (Width: 42, Height: 42); } }
+        Group { Anchor: (Horizontal: 0, Height: 44, Bottom: 2); LayoutMode: Left; Group #InvSlot36 { Anchor: (Width: 42, Height: 42); } Group #InvSlot37 { Anchor: (Width: 42, Height: 42); } Group #InvSlot38 { Anchor: (Width: 42, Height: 42); } Group #InvSlot39 { Anchor: (Width: 42, Height: 42); } Group #InvSlot40 { Anchor: (Width: 42, Height: 42); } Group #InvSlot41 { Anchor: (Width: 42, Height: 42); } Group #InvSlot42 { Anchor: (Width: 42, Height: 42); } Group #InvSlot43 { Anchor: (Width: 42, Height: 42); } Group #InvSlot44 { Anchor: (Width: 42, Height: 42); } }
+        Group { Anchor: (Horizontal: 0, Height: 44, Bottom: 2); LayoutMode: Left; Group #InvSlot45 { Anchor: (Width: 42, Height: 42); } Group #InvSlot46 { Anchor: (Width: 42, Height: 42); } Group #InvSlot47 { Anchor: (Width: 42, Height: 42); } Group #InvSlot48 { Anchor: (Width: 42, Height: 42); } Group #InvSlot49 { Anchor: (Width: 42, Height: 42); } Group #InvSlot50 { Anchor: (Width: 42, Height: 42); } Group #InvSlot51 { Anchor: (Width: 42, Height: 42); } Group #InvSlot52 { Anchor: (Width: 42, Height: 42); } Group #InvSlot53 { Anchor: (Width: 42, Height: 42); } }
+    }
+
+    // ---- footer ----
+    Group { Anchor: (Horizontal: 0, Height: 38); LayoutMode: Left;
+      $C.@SecondaryTextButton #BtnKbBack { @Anchor = (Height: 36); FlexWeight: 1; Text: ""; }
+      Group { Anchor: (Width: 10); }
+      $C.@SecondaryTextButton #BtnKbSave { @Anchor = (Height: 36); FlexWeight: 1; Text: ""; }
+    }
+  }
+}

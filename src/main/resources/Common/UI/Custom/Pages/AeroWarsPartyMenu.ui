@@ -1,0 +1,103 @@
+$C = "../AeroWarsUI.ui";
+$Sounds = "../AeroWarsSounds.ui";
+
+$C.@PageOverlay {}
+
+$C.@Container {
+  Anchor: (Width: 640, Height: 580);
+
+  #Title {
+    $C.@Title #PartyTitle { @Text = "PARTY"; }
+  }
+
+  #Content {
+    LayoutMode: Top;
+    Padding: (Top: 16, Bottom: 16, Left: 18, Right: 18);
+
+    Label #PartyStatus {
+      Anchor: (Horizontal: 0, Height: 20, Bottom: 8);
+      Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #cbd9e8);
+      Text: "";
+    }
+
+    // ---- Incoming invite banner (only visible when the viewer has a pending invite) ----
+    Group #PartyInviteBanner {
+      Anchor: (Horizontal: 0, Height: 40, Bottom: 8);
+      LayoutMode: Left;
+      Background: (Color: #223149);
+      Padding: (Left: 12, Right: 10);
+      Visible: false;
+
+      Label #PartyInviteText {
+        Anchor: (Height: 18, Vertical: 0);
+        FlexWeight: 1;
+        Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffe08a, VerticalAlignment: Center);
+        Text: "";
+      }
+      Group { Anchor: (Width: 8); }
+      $C.@SmallSecondaryTextButton #BtnAcceptInvite { @Anchor = (Width: 100, Height: 30); Text: "Accept"; }
+      Group { Anchor: (Width: 6); }
+      $C.@SmallTertiaryTextButton #BtnDeclineInvite { @Anchor = (Width: 100, Height: 30); Text: "Decline"; }
+    }
+
+    Label #PartyMembersLabel {
+      Anchor: (Horizontal: 0, Height: 18, Bottom: 6);
+      Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #8fa4bc, RenderUppercase: true, RenderBold: true);
+      Text: "MEMBERS";
+    }
+
+    Label #PartyEmpty {
+      Anchor: (Horizontal: 0, Height: 18, Bottom: 8);
+      Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #d6a6a6);
+      Text: "You are not in a party. Invite someone to start one.";
+      Visible: false;
+    }
+
+    Group {
+      Anchor: (Horizontal: 0, Bottom: 10);
+      FlexWeight: 1;
+      LayoutMode: TopScrolling;
+      ScrollbarStyle: $C.@DefaultScrollbarStyle;
+
+      Group #PartyRow0 { Anchor: (Height: 36, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #1b2740); Padding: (Left: 12, Right: 10); Visible: false; Label #PartyName0 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 6); } $C.@SmallSecondaryTextButton #BtnPromote0 { @Anchor = (Width: 96, Height: 28); Text: "Promote"; } Group { Anchor: (Width: 6); } $C.@SmallTertiaryTextButton #BtnKick0 { @Anchor = (Width: 80, Height: 28); Text: "Kick"; } }
+      Group #PartyRow1 { Anchor: (Height: 36, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #1b2740); Padding: (Left: 12, Right: 10); Visible: false; Label #PartyName1 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 6); } $C.@SmallSecondaryTextButton #BtnPromote1 { @Anchor = (Width: 96, Height: 28); Text: "Promote"; } Group { Anchor: (Width: 6); } $C.@SmallTertiaryTextButton #BtnKick1 { @Anchor = (Width: 80, Height: 28); Text: "Kick"; } }
+      Group #PartyRow2 { Anchor: (Height: 36, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #1b2740); Padding: (Left: 12, Right: 10); Visible: false; Label #PartyName2 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 6); } $C.@SmallSecondaryTextButton #BtnPromote2 { @Anchor = (Width: 96, Height: 28); Text: "Promote"; } Group { Anchor: (Width: 6); } $C.@SmallTertiaryTextButton #BtnKick2 { @Anchor = (Width: 80, Height: 28); Text: "Kick"; } }
+      Group #PartyRow3 { Anchor: (Height: 36, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #1b2740); Padding: (Left: 12, Right: 10); Visible: false; Label #PartyName3 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 6); } $C.@SmallSecondaryTextButton #BtnPromote3 { @Anchor = (Width: 96, Height: 28); Text: "Promote"; } Group { Anchor: (Width: 6); } $C.@SmallTertiaryTextButton #BtnKick3 { @Anchor = (Width: 80, Height: 28); Text: "Kick"; } }
+      Group #PartyRow4 { Anchor: (Height: 36, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #1b2740); Padding: (Left: 12, Right: 10); Visible: false; Label #PartyName4 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 6); } $C.@SmallSecondaryTextButton #BtnPromote4 { @Anchor = (Width: 96, Height: 28); Text: "Promote"; } Group { Anchor: (Width: 6); } $C.@SmallTertiaryTextButton #BtnKick4 { @Anchor = (Width: 80, Height: 28); Text: "Kick"; } }
+      Group #PartyRow5 { Anchor: (Height: 36, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #1b2740); Padding: (Left: 12, Right: 10); Visible: false; Label #PartyName5 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 6); } $C.@SmallSecondaryTextButton #BtnPromote5 { @Anchor = (Width: 96, Height: 28); Text: "Promote"; } Group { Anchor: (Width: 6); } $C.@SmallTertiaryTextButton #BtnKick5 { @Anchor = (Width: 80, Height: 28); Text: "Kick"; } }
+      Group #PartyRow6 { Anchor: (Height: 36, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #1b2740); Padding: (Left: 12, Right: 10); Visible: false; Label #PartyName6 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 6); } $C.@SmallSecondaryTextButton #BtnPromote6 { @Anchor = (Width: 96, Height: 28); Text: "Promote"; } Group { Anchor: (Width: 6); } $C.@SmallTertiaryTextButton #BtnKick6 { @Anchor = (Width: 80, Height: 28); Text: "Kick"; } }
+      Group #PartyRow7 { Anchor: (Height: 36, Horizontal: 0, Bottom: 4); LayoutMode: Left; Background: (Color: #1b2740); Padding: (Left: 12, Right: 10); Visible: false; Label #PartyName7 { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffffff, VerticalAlignment: Center); Text: ""; } Group { Anchor: (Width: 6); } $C.@SmallSecondaryTextButton #BtnPromote7 { @Anchor = (Width: 96, Height: 28); Text: "Promote"; } Group { Anchor: (Width: 6); } $C.@SmallTertiaryTextButton #BtnKick7 { @Anchor = (Width: 80, Height: 28); Text: "Kick"; } }
+    }
+
+    // ---- Keep-party-together toggle (leader only) ----
+    Group #PartyKeepRow {
+      Anchor: (Horizontal: 0, Height: 30, Bottom: 8);
+      LayoutMode: Left;
+      Visible: false;
+      Label #PartyKeepLabel { Anchor: (Height: 18, Vertical: 0); FlexWeight: 1; Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #cbd9e8, VerticalAlignment: Center); Text: ""; }
+      Group { Anchor: (Width: 8); }
+      $C.@SmallSecondaryTextButton #BtnKeepTogether { @Anchor = (Width: 96, Height: 28); Text: ""; }
+    }
+
+    // ---- Primary action: Queue (leader only) ----
+    Group {
+      Anchor: (Horizontal: 0, Height: 38, Bottom: 8);
+      LayoutMode: Left;
+
+      $C.@SecondaryTextButton #BtnQueue { @Anchor = (Height: 36); FlexWeight: 1; Text: ""; Visible: false; }
+    }
+
+    // ---- Footer: Leave/Disband on the left, then Invite next to Close ----
+    Group {
+      Anchor: (Horizontal: 0, Height: 38);
+      LayoutMode: Left;
+
+      $C.@CancelTextButton #BtnLeave { @Sounds = $Sounds.@ButtonsCancel; @Anchor = (Height: 36); FlexWeight: 1; Text: ""; Visible: false; }
+      $C.@CancelTextButton #BtnDisband { @Sounds = $Sounds.@ButtonsCancel; @Anchor = (Height: 36); FlexWeight: 1; Text: ""; Visible: false; }
+      Group { Anchor: (Width: 8); }
+      $C.@SecondaryTextButton #BtnInvite { @Anchor = (Height: 36); FlexWeight: 1; Text: ""; }
+      Group { Anchor: (Width: 8); }
+      $C.@SecondaryTextButton #BtnClose { @Sounds = $Sounds.@ButtonsLight; @Anchor = (Height: 36); FlexWeight: 1; Text: ""; }
+    }
+  }
+}

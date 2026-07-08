@@ -1,0 +1,9 @@
+{
+  "Parent": "Furniture_Crude_Bed",
+  "TranslationProperties": {
+    "Name": "aerowars.items.AeroWars_SpecLobby.name",
+    "Description": "aerowars.items.AeroWars_SpecLobby.description"
+  },
+  "MaxStack": 1,
+  "DropOnDeath": false
+}

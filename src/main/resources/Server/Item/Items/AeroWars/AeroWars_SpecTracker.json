@@ -1,0 +1,9 @@
+{
+  "Parent": "Furniture_Crude_Torch",
+  "TranslationProperties": {
+    "Name": "aerowars.items.AeroWars_SpecTracker.name",
+    "Description": "aerowars.items.AeroWars_SpecTracker.description"
+  },
+  "MaxStack": 1,
+  "DropOnDeath": false
+}

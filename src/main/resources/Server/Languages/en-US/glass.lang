@@ -1,0 +1,14 @@
+items.Glass_Block.name = Glass Block
+items.Glass_Block.description = A transparent glass block.
+items.Glass_Block_Red.name = Red Glass Block
+items.Glass_Block_Orange.name = Orange Glass Block
+items.Glass_Block_Yellow.name = Yellow Glass Block
+items.Glass_Block_Lime.name = Lime Glass Block
+items.Glass_Block_Green.name = Green Glass Block
+items.Glass_Block_Cyan.name = Cyan Glass Block
+items.Glass_Block_Blue.name = Blue Glass Block
+items.Glass_Block_Purple.name = Purple Glass Block
+items.Glass_Block_Pink.name = Pink Glass Block
+items.Glass_Block_Magenta.name = Magenta Glass Block
+items.Glass_Block_White.name = White Glass Block
+items.Glass_Block_Black.name = Black Glass Block

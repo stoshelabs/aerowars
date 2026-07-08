@@ -1,0 +1,19 @@
+{
+  "Name": "AeroWars",
+  "ID": "aerowars",
+  "Group": "Stoshe",
+  "Version": "${version}",
+  "Authors": [
+    { "Name": "Stoshe Labs", "Url": "https://github.com/stoshelabs" },
+    { "Name": "Gustavo Will", "Url": "https://github.com/gitgusilva" }
+  ],
+  "Website": "https://github.com/stoshelabs/aerowars",
+  "Main": "dev.stoshe.aerowars.AeroWars",
+  "ServerVersion": "*",
+  "Description": "AeroWars: a competitive SkyWars-style minigame for Hytale. Multi-arena solo & teams, spawn cages, chest loot tables, selectable kits, spectator mode, and a custom UI/HUD.",
+  "IncludesAssetPack": true,
+  "OptionalDependencies": {
+    "Stoshe:stoshe.taleguard": "*",
+    "HelpChat:PlaceholderAPI": "*"
+  }
+}

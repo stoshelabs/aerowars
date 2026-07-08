@@ -1,0 +1,9 @@
+{
+  "Parent": "Tool_Pickaxe_Wood",
+  "TranslationProperties": {
+    "Name": "aerowars.items.AeroWars_SetupWand.name",
+    "Description": "aerowars.items.AeroWars_SetupWand.description"
+  },
+  "MaxStack": 1,
+  "DropOnDeath": false
+}

@@ -1,0 +1,73 @@
+$C = "../AeroWarsUI.ui";
+$Sounds = "../AeroWarsSounds.ui";
+
+$C.@PageOverlay {}
+
+$C.@Container #CosmRoot {
+  Anchor: (Width: 900, Height: 600);
+
+  #Title {
+    $C.@Title #CosmTitle { @Text = "COSMETICS"; }
+  }
+
+  #Content {
+    LayoutMode: Left;
+    Padding: (Top: 16, Bottom: 16, Left: 16, Right: 16);
+
+    Group #CosmNav {
+      Anchor: (Width: 196, Top: 0, Bottom: 0);
+      LayoutMode: Top;
+      $C.@AeroNavButton #NavCage { @Text = "Cages"; }
+      $C.@AeroNavButtonActive #NavCageActive { @Text = "Cages"; Visible: false; }
+      $C.@AeroNavButton #NavKill { @Text = "Kill Effects"; }
+      $C.@AeroNavButtonActive #NavKillActive { @Text = "Kill Effects"; Visible: false; }
+      $C.@AeroNavButton #NavVictory { @Text = "Victory"; }
+      $C.@AeroNavButtonActive #NavVictoryActive { @Text = "Victory"; Visible: false; }
+      $C.@AeroNavButton #NavTrail { @Text = "Trails"; }
+      $C.@AeroNavButtonActive #NavTrailActive { @Text = "Trails"; Visible: false; }
+      Group { Anchor: (Horizontal: 0, Height: 10); }
+      Label #CosmBalance { Anchor: (Horizontal: 0, Height: 18); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #ffe08a); Text: ""; }
+      Group { FlexWeight: 1; }
+      $C.@SecondaryTextButton #BtnCosmClose { @Sounds = $Sounds.@ButtonsLight; @Anchor = (Horizontal: 0, Height: 36); Text: "Close"; }
+    }
+
+    Group { Anchor: (Width: 14); }
+
+    Group #CosmBody {
+      FlexWeight: 1;
+      Anchor: (Top: 0, Bottom: 0);
+      LayoutMode: Top;
+
+      Label #CosmPanelTitle { Anchor: (Horizontal: 0, Height: 22, Bottom: 4); Style: (...$C.@DefaultLabelStyle, FontSize: 16, TextColor: #ffffff); Text: ""; }
+      Label #CosmSubtitle { Anchor: (Horizontal: 0, Height: 16, Bottom: 6); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #b2c1d0); Text: ""; }
+
+      Group #CosmFilterBar { Anchor: (Horizontal: 0, Height: 30, Bottom: 8); LayoutMode: Left;
+        $C.@SmallSecondaryTextButton #CosmFilterAll { @Anchor = (Width: 132, Height: 28); Text: ""; }
+        Group { Anchor: (Width: 8); }
+        $C.@SmallSecondaryTextButton #CosmFilterOwned { @Anchor = (Width: 152, Height: 28); Text: ""; }
+        Group { Anchor: (Width: 8); }
+        $C.@SmallSecondaryTextButton #CosmFilterBuy { @Anchor = (Width: 152, Height: 28); Text: ""; }
+      }
+
+      Label #CosmEmpty { Anchor: (Horizontal: 0, Height: 18, Bottom: 8); Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #d6a6a6); Text: ""; Visible: false; }
+
+      Group {
+        Anchor: (Horizontal: 0, Bottom: 0);
+        FlexWeight: 1;
+        LayoutMode: TopScrolling;
+        ScrollbarStyle: $C.@DefaultScrollbarStyle;
+
+      Group #CosmRow0 { Anchor: (Height: 46, Horizontal: 0, Bottom: 6); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 12, Right: 12); Visible: false; Group { Anchor: (Vertical: 0); FlexWeight: 1; LayoutMode: Top; Label #CosmName0 { Anchor: (Horizontal: 0, Height: 18); Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff); Text: ""; } Label #CosmDesc0 { Anchor: (Horizontal: 0, Height: 15); Style: (...$C.@DefaultLabelStyle, FontSize: 11, TextColor: #9fb2c6); Text: ""; } } Group { Anchor: (Width: 10); } $C.@SmallSecondaryTextButton #CosmAction0 { @Anchor = (Width: 150, Height: 30); Text: ""; } }
+      Group #CosmRow1 { Anchor: (Height: 46, Horizontal: 0, Bottom: 6); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 12, Right: 12); Visible: false; Group { Anchor: (Vertical: 0); FlexWeight: 1; LayoutMode: Top; Label #CosmName1 { Anchor: (Horizontal: 0, Height: 18); Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff); Text: ""; } Label #CosmDesc1 { Anchor: (Horizontal: 0, Height: 15); Style: (...$C.@DefaultLabelStyle, FontSize: 11, TextColor: #9fb2c6); Text: ""; } } Group { Anchor: (Width: 10); } $C.@SmallSecondaryTextButton #CosmAction1 { @Anchor = (Width: 150, Height: 30); Text: ""; } }
+      Group #CosmRow2 { Anchor: (Height: 46, Horizontal: 0, Bottom: 6); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 12, Right: 12); Visible: false; Group { Anchor: (Vertical: 0); FlexWeight: 1; LayoutMode: Top; Label #CosmName2 { Anchor: (Horizontal: 0, Height: 18); Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff); Text: ""; } Label #CosmDesc2 { Anchor: (Horizontal: 0, Height: 15); Style: (...$C.@DefaultLabelStyle, FontSize: 11, TextColor: #9fb2c6); Text: ""; } } Group { Anchor: (Width: 10); } $C.@SmallSecondaryTextButton #CosmAction2 { @Anchor = (Width: 150, Height: 30); Text: ""; } }
+      Group #CosmRow3 { Anchor: (Height: 46, Horizontal: 0, Bottom: 6); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 12, Right: 12); Visible: false; Group { Anchor: (Vertical: 0); FlexWeight: 1; LayoutMode: Top; Label #CosmName3 { Anchor: (Horizontal: 0, Height: 18); Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff); Text: ""; } Label #CosmDesc3 { Anchor: (Horizontal: 0, Height: 15); Style: (...$C.@DefaultLabelStyle, FontSize: 11, TextColor: #9fb2c6); Text: ""; } } Group { Anchor: (Width: 10); } $C.@SmallSecondaryTextButton #CosmAction3 { @Anchor = (Width: 150, Height: 30); Text: ""; } }
+      Group #CosmRow4 { Anchor: (Height: 46, Horizontal: 0, Bottom: 6); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 12, Right: 12); Visible: false; Group { Anchor: (Vertical: 0); FlexWeight: 1; LayoutMode: Top; Label #CosmName4 { Anchor: (Horizontal: 0, Height: 18); Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff); Text: ""; } Label #CosmDesc4 { Anchor: (Horizontal: 0, Height: 15); Style: (...$C.@DefaultLabelStyle, FontSize: 11, TextColor: #9fb2c6); Text: ""; } } Group { Anchor: (Width: 10); } $C.@SmallSecondaryTextButton #CosmAction4 { @Anchor = (Width: 150, Height: 30); Text: ""; } }
+      Group #CosmRow5 { Anchor: (Height: 46, Horizontal: 0, Bottom: 6); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 12, Right: 12); Visible: false; Group { Anchor: (Vertical: 0); FlexWeight: 1; LayoutMode: Top; Label #CosmName5 { Anchor: (Horizontal: 0, Height: 18); Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff); Text: ""; } Label #CosmDesc5 { Anchor: (Horizontal: 0, Height: 15); Style: (...$C.@DefaultLabelStyle, FontSize: 11, TextColor: #9fb2c6); Text: ""; } } Group { Anchor: (Width: 10); } $C.@SmallSecondaryTextButton #CosmAction5 { @Anchor = (Width: 150, Height: 30); Text: ""; } }
+      Group #CosmRow6 { Anchor: (Height: 46, Horizontal: 0, Bottom: 6); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 12, Right: 12); Visible: false; Group { Anchor: (Vertical: 0); FlexWeight: 1; LayoutMode: Top; Label #CosmName6 { Anchor: (Horizontal: 0, Height: 18); Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff); Text: ""; } Label #CosmDesc6 { Anchor: (Horizontal: 0, Height: 15); Style: (...$C.@DefaultLabelStyle, FontSize: 11, TextColor: #9fb2c6); Text: ""; } } Group { Anchor: (Width: 10); } $C.@SmallSecondaryTextButton #CosmAction6 { @Anchor = (Width: 150, Height: 30); Text: ""; } }
+      Group #CosmRow7 { Anchor: (Height: 46, Horizontal: 0, Bottom: 6); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 12, Right: 12); Visible: false; Group { Anchor: (Vertical: 0); FlexWeight: 1; LayoutMode: Top; Label #CosmName7 { Anchor: (Horizontal: 0, Height: 18); Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff); Text: ""; } Label #CosmDesc7 { Anchor: (Horizontal: 0, Height: 15); Style: (...$C.@DefaultLabelStyle, FontSize: 11, TextColor: #9fb2c6); Text: ""; } } Group { Anchor: (Width: 10); } $C.@SmallSecondaryTextButton #CosmAction7 { @Anchor = (Width: 150, Height: 30); Text: ""; } }
+      Group #CosmRow8 { Anchor: (Height: 46, Horizontal: 0, Bottom: 6); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 12, Right: 12); Visible: false; Group { Anchor: (Vertical: 0); FlexWeight: 1; LayoutMode: Top; Label #CosmName8 { Anchor: (Horizontal: 0, Height: 18); Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff); Text: ""; } Label #CosmDesc8 { Anchor: (Horizontal: 0, Height: 15); Style: (...$C.@DefaultLabelStyle, FontSize: 11, TextColor: #9fb2c6); Text: ""; } } Group { Anchor: (Width: 10); } $C.@SmallSecondaryTextButton #CosmAction8 { @Anchor = (Width: 150, Height: 30); Text: ""; } }
+      Group #CosmRow9 { Anchor: (Height: 46, Horizontal: 0, Bottom: 6); LayoutMode: Left; Background: (Color: #223149); Padding: (Left: 12, Right: 12); Visible: false; Group { Anchor: (Vertical: 0); FlexWeight: 1; LayoutMode: Top; Label #CosmName9 { Anchor: (Horizontal: 0, Height: 18); Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #ffffff); Text: ""; } Label #CosmDesc9 { Anchor: (Horizontal: 0, Height: 15); Style: (...$C.@DefaultLabelStyle, FontSize: 11, TextColor: #9fb2c6); Text: ""; } } Group { Anchor: (Width: 10); } $C.@SmallSecondaryTextButton #CosmAction9 { @Anchor = (Width: 150, Height: 30); Text: ""; } }
+      }
+    }
+  }
+}

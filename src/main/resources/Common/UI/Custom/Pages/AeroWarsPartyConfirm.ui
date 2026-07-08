@@ -1,0 +1,46 @@
+$C = "../AeroWarsUI.ui";
+$Sounds = "../AeroWarsSounds.ui";
+
+$C.@PageOverlay {}
+
+$C.@Container {
+  Anchor: (Width: 470, Height: 250);
+
+  #Title {
+    $C.@Title #ConfirmPopupTitle { @Text = "CONFIRM"; }
+  }
+
+  #Content {
+    LayoutMode: Top;
+    Padding: (Top: 18, Bottom: 20, Left: 24, Right: 24);
+
+    Label #ConfirmPopupMessage {
+      Anchor: (Horizontal: 0, Height: 60, Bottom: 10);
+      Style: (...$C.@DefaultLabelStyle, FontSize: 12, TextColor: #d0dce6, HorizontalAlignment: Center, VerticalAlignment: Center, Wrap: true);
+      Text: "";
+    }
+
+    Group { FlexWeight: 1; }
+
+    Group {
+      Anchor: (Horizontal: 0, Height: 40);
+      LayoutMode: Left;
+
+      $C.@SecondaryTextButton #BtnConfirmCancel {
+        @Sounds = $Sounds.@ButtonsLight;
+        @Anchor = (Height: 36);
+        FlexWeight: 1;
+        Text: "Cancel";
+      }
+
+      Group { Anchor: (Width: 8); }
+
+      $C.@CancelTextButton #BtnConfirmConfirm {
+        @Sounds = $Sounds.@ButtonsCancel;
+        @Anchor = (Height: 36);
+        FlexWeight: 1;
+        Text: "Confirm";
+      }
+    }
+  }
+}

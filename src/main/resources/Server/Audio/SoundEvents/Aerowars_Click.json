@@ -1,0 +1,13 @@
+{
+    "Volume": 1.0,
+    "Pitch": 1.0,
+    "Layers": [
+        {
+            "Files": [
+                "Sounds/aerowars_click.ogg"
+            ],
+            "Volume": 1.0
+        }
+    ],
+    "AudioCategory": "AudioCat_UI"
+}
