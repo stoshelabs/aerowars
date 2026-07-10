@@ -1,0 +1,125 @@
+/* ============================================================
+   AeroWars docs theme — brand colours + a colourful home.
+   ============================================================ */
+
+/* ---- Brand palette (AeroWars blue → purple) ---------------- */
+:root {
+  --vp-c-brand-1: #1e7fe0;
+  --vp-c-brand-2: #2b8fff;
+  --vp-c-brand-3: #1e90ff;
+  --vp-c-brand-soft: rgba(30, 144, 255, 0.14);
+
+  --vp-button-brand-bg: #1e90ff;
+  --vp-button-brand-hover-bg: #3b9eff;
+  --vp-button-brand-active-bg: #1a7fe0;
+  --vp-button-brand-border: transparent;
+  --vp-button-brand-hover-border: transparent;
+  --vp-button-brand-active-border: transparent;
+  --vp-button-brand-text: #ffffff;
+
+  /* Rainbow used for hero accents (matches the wordmark). */
+  --aw-rainbow: linear-gradient(120deg, #ff8c00 8%, #ffe600 28%, #3ad13a 50%, #1e90ff 74%, #8a2be2 94%);
+}
+.dark {
+  --vp-c-brand-1: #6bb6ff;
+  --vp-c-brand-2: #83c1ff;
+  --vp-c-brand-3: #2b8fff;
+  --vp-c-brand-soft: rgba(90, 176, 255, 0.16);
+}
+
+/* ---- Gradient brand buttons -------------------------------- */
+.VPButton.brand {
+  background-image: linear-gradient(120deg, #1e90ff 0%, #8a2be2 100%);
+  border: none !important;
+  transition: filter 0.2s ease, transform 0.2s ease;
+}
+.VPButton.brand:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+/* ============================================================
+   HOME HERO — logo IS the title: stacked above the tagline,
+   left-aligned, at natural size. Overrides VitePress' default
+   right-side absolutely-positioned hero image.
+   ============================================================ */
+.VPHero.has-image .container {
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  text-align: left !important;
+}
+.VPHero .main {
+  order: 1 !important;
+  max-width: 640px;
+}
+.VPHero.has-image .tagline {
+  margin: 0 !important;
+}
+.VPHero.has-image .actions {
+  justify-content: flex-start !important;
+}
+.VPHero .image {
+  order: -1 !important;              /* logo sits above the text */
+  margin: 0 0 1.75rem 0 !important;  /* drop VitePress' negative margins */
+  max-width: 100% !important;
+}
+.VPHero .image-container {
+  position: static !important;
+  margin: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: 100% !important;
+  transform: none !important;
+}
+.VPHero .image-bg {
+  display: none !important;          /* the blurred blob behind the image */
+}
+.VPHero .image-src {
+  position: static !important;       /* default is absolute inside a fixed box */
+  transform: none !important;
+  width: auto !important;
+  max-width: min(100%, 460px) !important;
+  max-height: none !important;
+  filter: drop-shadow(0 12px 40px rgba(30, 144, 255, 0.30));
+}
+
+/* ============================================================
+   FEATURE CARDS — a rainbow spread matching the logo, with a
+   coloured top bar, tinted icon tile, and a lift on hover.
+   ============================================================ */
+.VPFeatures .items .item .VPFeature {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--vp-c-divider);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.VPFeatures .items .item .VPFeature:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.14);
+  border-color: transparent;
+}
+.VPFeatures .items .item .VPFeature::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--aw-accent, var(--vp-c-brand-1));
+}
+.VPFeatures .items .item .VPFeature .icon {
+  background: var(--aw-accent-soft, var(--vp-c-brand-soft)) !important;
+  border-radius: 10px;
+}
+
+.VPFeatures .items .item:nth-child(6n + 1) .VPFeature { --aw-accent: #ff8c00; --aw-accent-soft: rgba(255, 140, 0, 0.16); }
+.VPFeatures .items .item:nth-child(6n + 2) .VPFeature { --aw-accent: #f5b301; --aw-accent-soft: rgba(245, 179, 1, 0.16); }
+.VPFeatures .items .item:nth-child(6n + 3) .VPFeature { --aw-accent: #33c25a; --aw-accent-soft: rgba(51, 194, 90, 0.16); }
+.VPFeatures .items .item:nth-child(6n + 4) .VPFeature { --aw-accent: #22c3d6; --aw-accent-soft: rgba(34, 195, 214, 0.16); }
+.VPFeatures .items .item:nth-child(6n + 5) .VPFeature { --aw-accent: #1e90ff; --aw-accent-soft: rgba(30, 144, 255, 0.16); }
+.VPFeatures .items .item:nth-child(6n + 6) .VPFeature { --aw-accent: #8a2be2; --aw-accent-soft: rgba(138, 43, 226, 0.16); }
+
+/* Friendlier feature titles */
+.VPFeatures .items .item .VPFeature .title {
+  font-weight: 700;
+}
