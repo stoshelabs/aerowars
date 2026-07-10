@@ -20,10 +20,12 @@ import java.util.stream.Collectors;
 public class ArenaManager {
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private final File arenasDir;
+    private final MapManager mapManager;
     private final Map<String, Arena> arenas = new ConcurrentHashMap<>();
 
-    public ArenaManager(File dataDir) {
+    public ArenaManager(File dataDir, MapManager mapManager) {
         this.arenasDir = new File(dataDir, "arenas");
+        this.mapManager = mapManager;
         if (!arenasDir.exists()) {
             arenasDir.mkdirs();
         }
@@ -37,7 +39,10 @@ public class ArenaManager {
         }
         for (File file : files) {
             try (Reader reader = new FileReader(file)) {
-                Arena arena = gson.fromJson(reader, Arena.class);
+                com.google.gson.JsonObject json = com.google.gson.JsonParser.parseReader(reader).getAsJsonObject();
+                migrateLegacyLayout(json);
+                Arena arena = gson.fromJson(json, Arena.class);
+
                 if (arena != null && arena.name != null) {
                     arenas.put(arena.name.toLowerCase(), arena);
                 }
@@ -46,6 +51,27 @@ public class ArenaManager {
             }
         }
         Console.info("Loaded " + arenas.size() + " arena(s).");
+    }
+
+    /**
+     * One-time migration for arenas written before the per-map refactor: they stored the layout
+     * (spawns/chests/spectator) inline. If this file still carries it and the map has no layout yet,
+     * lift it into a {@code maps/<template>.json} so the arena keeps working (and can share the map).
+     */
+    private void migrateLegacyLayout(com.google.gson.JsonObject json) {
+        if (json == null || !json.has("spawnPoints") || !json.has("worldTemplate")) {
+            return;
+        }
+
+        String template = json.get("worldTemplate").getAsString();
+        if (template == null || template.isBlank() || mapManager.hasLayout(template)) {
+            return;
+        }
+
+        dev.stoshe.aerowars.model.MapLayout layout = gson.fromJson(json, dev.stoshe.aerowars.model.MapLayout.class);
+        layout.template = template;
+        mapManager.saveMap(layout);
+        Console.info("Migrated legacy arena layout into map '" + template + "'.");
     }
 
     public void saveArena(Arena arena) {
@@ -90,21 +116,27 @@ public class ArenaManager {
     }
 
     public List<Arena> getPlayableArenas() {
-        return arenas.values().stream().filter(Arena::isPlayable).collect(Collectors.toList());
+        return arenas.values().stream().filter(mapManager::isArenaPlayable).collect(Collectors.toList());
     }
 
     /**
-     * Clears an arena's chests (both tiers) and persists. Used by the admin panel. Clearing chests puts
-     * the arena into DRAFT so it stops appearing in matchmaking — a SkyWars map with no chests isn't
-     * meant to be played; re-adding chests via setup edit lifts the draft flag.
+     * Clears the chests on the arena's PRIMARY map (both tiers) and drafts the arena. Used by the admin
+     * panel. Chests live per-map now, so this affects every arena sharing that map; the arena is drafted
+     * so matchmaking skips it until chests are re-added via setup.
      */
     public boolean clearChests(String name) {
         Arena arena = getArena(name);
         if (arena == null) {
             return false;
         }
-        arena.normalChests.clear();
-        arena.middleChests.clear();
+
+        dev.stoshe.aerowars.model.MapLayout layout = mapManager.getLayout(arena.worldTemplate);
+        if (layout != null) {
+            layout.normalChests.clear();
+            layout.middleChests.clear();
+            mapManager.saveMap(layout);
+        }
+
         arena.draft = true;
         saveArena(arena);
         return true;

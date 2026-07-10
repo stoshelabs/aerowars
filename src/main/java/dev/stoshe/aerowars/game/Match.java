@@ -3,6 +3,7 @@ package dev.stoshe.aerowars.game;
 import com.hypixel.hytale.server.core.universe.world.World;
 import dev.stoshe.aerowars.model.Arena;
 import dev.stoshe.aerowars.model.GameMode;
+import dev.stoshe.aerowars.model.MapLayout;
 import dev.stoshe.aerowars.model.MatchState;
 
 import java.util.ArrayList;
@@ -13,11 +14,17 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Live state of a single running match. Mutated only from the match scheduler / world thread. */
+/**
+ * Live state of a single running match. Most mutation happens on the match scheduler / world thread,
+ * but joins arrive on the command thread — so the player sets below are concurrent to keep the 1 Hz
+ * tick from tripping over a roster change mid-iteration.
+ */
 public final class Match {
     public final String id;
     public final Arena arena;
     public final World world;
+    /** Layout (spawns/chests/spectator) of the specific map this match cloned from the arena's pool. */
+    public final MapLayout layout;
 
     public MatchState state = MatchState.WAITING;
     public int countdownRemaining;
@@ -54,23 +61,31 @@ public final class Match {
         }
     }
 
-    public final Set<UUID> alive = new LinkedHashSet<>();
-    public final Set<UUID> spectators = new LinkedHashSet<>();
+    public final Set<UUID> alive = ConcurrentHashMap.newKeySet();
+    public final Set<UUID> spectators = ConcurrentHashMap.newKeySet();
     public final List<Team> teams = new ArrayList<>();
     public final Map<UUID, Team> playerTeam = new ConcurrentHashMap<>();
     public final Map<UUID, String> selectedKits = new ConcurrentHashMap<>();
     public final Map<UUID, Integer> kills = new ConcurrentHashMap<>();
     /** Names captured on join so kill/leave messages survive disconnect. */
     public final Map<UUID, String> names = new ConcurrentHashMap<>();
+    /** Blocks a cage overwrote, keyed "x,y,z", so opening the cage restores exactly what was there. */
+    public final Map<String, dev.stoshe.aerowars.model.BlockSnapshot> cageBlocks = new ConcurrentHashMap<>();
 
-    public Match(String id, Arena arena, World world) {
+    public Match(String id, Arena arena, World world, MapLayout layout) {
         this.id = id;
         this.arena = arena;
         this.world = world;
+        this.layout = layout;
     }
 
     public GameMode mode() {
         return arena.mode();
+    }
+
+    /** Max players for THIS match, from its cloned map's spawn count and the arena's mode/team size. */
+    public int maxPlayers() {
+        return layout == null ? 0 : layout.maxPlayers(arena.mode(), arena.effectiveTeamSize());
     }
 
     public int totalPlayers() {
@@ -78,7 +93,7 @@ public final class Match {
     }
 
     public boolean isFull() {
-        return totalPlayers() >= arena.getMaxPlayers();
+        return totalPlayers() >= maxPlayers();
     }
 
     public boolean hasRoom() {
@@ -90,7 +105,7 @@ public final class Match {
         if (!state.acceptsPlayers()) {
             return 0;
         }
-        return Math.max(0, arena.getMaxPlayers() - totalPlayers());
+        return Math.max(0, maxPlayers() - totalPlayers());
     }
 
     public Team teamOf(UUID player) {

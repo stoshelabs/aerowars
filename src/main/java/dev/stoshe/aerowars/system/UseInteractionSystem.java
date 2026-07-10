@@ -46,7 +46,8 @@ public class UseInteractionSystem extends EntityEventSystem<EntityStore, UseBloc
             return;
         }
         UUID uuid = playerRef.getUuid();
-        // Spectator hotbar: RIGHT-click a block with a spec tool fires its action (tracker/lobby).
+        // Spectator hotbar: RIGHT-click a block with a spec tool fires its action (tracker/lobby). The AIR
+        // case is handled by PlayerMouseButtonEvent; this is the block path.
         if (matchManager.trySpectatorItemClick(playerRef, store)) {
             event.setCancelled(true);
             return;

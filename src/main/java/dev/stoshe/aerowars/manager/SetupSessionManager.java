@@ -2,6 +2,7 @@ package dev.stoshe.aerowars.manager;
 
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.inventory.Inventory;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
@@ -14,15 +15,15 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dev.stoshe.aerowars.AeroWars;
 import dev.stoshe.aerowars.game.SetupSession;
-import dev.stoshe.aerowars.model.Arena;
 import dev.stoshe.aerowars.model.ChestLocation;
 import dev.stoshe.aerowars.model.ChestType;
-import dev.stoshe.aerowars.model.GameMode;
+import dev.stoshe.aerowars.model.MapLayout;
 import dev.stoshe.aerowars.model.SetupStep;
 import dev.stoshe.aerowars.model.WorldPos;
 import dev.stoshe.aerowars.util.ChatUtil;
 import dev.stoshe.aerowars.util.Console;
 import dev.stoshe.aerowars.util.Locations;
+import dev.stoshe.aerowars.util.Sounds;
 import dev.stoshe.aerowars.util.SpawnMarkers;
 import dev.stoshe.aerowars.util.Teleports;
 import dev.stoshe.aerowars.util.Tr;
@@ -45,14 +46,14 @@ public class SetupSessionManager {
 
     private final AeroWars plugin;
     private final WorldManager worldManager;
-    private final ArenaManager arenaManager;
+    private final MapManager mapManager;
     private final Map<UUID, SetupSession> sessions = new ConcurrentHashMap<>();
     private ScheduledExecutorService scheduler;
 
     public SetupSessionManager(AeroWars plugin) {
         this.plugin = plugin;
         this.worldManager = plugin.getWorldManager();
-        this.arenaManager = plugin.getArenaManager();
+        this.mapManager = plugin.getMapManager();
     }
 
     public void start() {
@@ -65,19 +66,29 @@ public class SetupSessionManager {
         scheduler.scheduleAtFixedRate(this::renderSpawnMarkers, 500, 500, TimeUnit.MILLISECONDS);
     }
 
-    /** Redraws the floating spawn markers for every admin on the spawn-points step. */
+    /**
+     * Redraws EVERY marker (spawns, normal + middle chests, spectator) for every admin in setup, regardless
+     * of the current step, so the whole layout stays visible until the session finishes — not just the marker
+     * for the active step.
+     */
     private void renderSpawnMarkers() {
         for (SetupSession session : sessions.values()) {
             PlayerRef pr = Universe.get().getPlayer(session.playerId);
             if (pr == null) {
                 continue;
             }
-            if (session.step == SetupStep.SPAWN_POINTS && !session.spawnPoints.isEmpty()) {
-                SpawnMarkers.draw(pr, session.spawnPoints);
-            } else if (session.step == SetupStep.SPECTATOR_SPAWN && session.spectatorSpawn != null) {
+            SpawnMarkers.draw(pr, session.spawnPoints);
+            SpawnMarkers.drawChests(pr, session.normalChests, false);
+            SpawnMarkers.drawChests(pr, session.middleChests, true);
+            if (session.spectatorSpawn != null) {
                 SpawnMarkers.drawSpectator(pr, session.spectatorSpawn);
             }
         }
+    }
+
+    /** Short UI click cue for a setup action (spawn/chest add/remove, set). */
+    private void click(PlayerRef pr) {
+        Sounds.play(pr, Sounds.CLICK, 0.8f, 1.2f);
     }
 
     public void shutdown() {
@@ -113,7 +124,7 @@ public class SetupSessionManager {
     }
 
     public boolean startSession(Store<EntityStore> store, Ref<EntityStore> ref, PlayerRef playerRef,
-            String arenaName, String worldTemplate) {
+            String template) {
         UUID uuid = playerRef.getUuid();
         if (sessions.containsKey(uuid)) {
             playerRef.sendMessage(ChatUtil.error(Tr.t("setup.already_in_session")));
@@ -122,17 +133,21 @@ public class SetupSessionManager {
         // Leave any match/spectate FIRST — setup teleports into a fresh world, and being pulled straight
         // out of a live match world otherwise breaks the match + crashes setup-world creation.
         plugin.getMatchManager().leaveForSetup(playerRef);
-        World setupWorld = worldManager.createSetupWorld(arenaName, worldTemplate);
+        World setupWorld = worldManager.createSetupWorld(template, template);
         if (setupWorld == null) {
             playerRef.sendMessage(ChatUtil.error(Tr.t("match.world_failed")));
             return false;
         }
         plugin.suppressJoinMessagesFor(setupWorld.getName());
-        SetupSession session = new SetupSession(uuid, arenaName, worldTemplate, setupWorld,
-                System.currentTimeMillis());
+        SetupSession session = new SetupSession(uuid, template, setupWorld, System.currentTimeMillis());
+
+        if (mapManager.hasLayout(template)) {
+            session.seedFrom(mapManager.getLayout(template));
+        }
+
         sessions.put(uuid, session);
         Teleports.to(playerRef, setupWorld, worldManager.templateSpawnPos());
-        playerRef.sendMessage(ChatUtil.success(Tr.t("setup.session_started", "arena", arenaName)));
+        playerRef.sendMessage(ChatUtil.success(Tr.t("setup.session_started", "arena", template)));
         // Wand notice ABOVE the step instructions so the flow reads top-to-bottom (item arrives shortly).
         playerRef.sendMessage(ChatUtil.info(Tr.t("setup.wand_given")));
         sendStepInstructions(playerRef, session);
@@ -143,66 +158,43 @@ public class SetupSessionManager {
     }
 
     /**
-     * Begins an EDIT session for an existing arena: clones the arena's template into a fresh setup world
-     * and pre-fills the session with its spawns/chests/spectator so an admin can adjust and re-save it.
-     * Refused when a live match is already using the arena (can't edit an open/in-progress arena).
+     * Begins an EDIT session for an existing MAP: clones the template into a fresh setup world and
+     * pre-fills the session with the map's saved spawns/chests/spectator so an admin can adjust and
+     * re-save it. (Editing a map that live matches use only affects matches created afterwards.)
      */
-    public boolean editSession(PlayerRef playerRef, Arena arena) {
+    public boolean editSession(PlayerRef playerRef, String template) {
         UUID uuid = playerRef.getUuid();
-        if (arena == null) {
+        if (template == null) {
             return false;
         }
         if (sessions.containsKey(uuid)) {
             playerRef.sendMessage(ChatUtil.error(Tr.t("setup.already_in_session")));
             return false;
         }
-        if (plugin.getMatchManager().isArenaInUse(arena.name)) {
-            playerRef.sendMessage(ChatUtil.error(Tr.t("setup.arena_in_use", "arena", arena.name)));
+
+        MapLayout layout = mapManager.getLayout(template);
+        if (layout == null) {
+            playerRef.sendMessage(ChatUtil.error(Tr.t("setup.map_not_found", "template", template)));
             return false;
         }
+
         // Leave any match/spectate first (see startSession).
         plugin.getMatchManager().leaveForSetup(playerRef);
-        World setupWorld = worldManager.createSetupWorld(arena.name, arena.worldTemplate);
+        World setupWorld = worldManager.createSetupWorld(template, template);
         if (setupWorld == null) {
             playerRef.sendMessage(ChatUtil.error(Tr.t("match.world_failed")));
             return false;
         }
         plugin.suppressJoinMessagesFor(setupWorld.getName());
-        SetupSession session = new SetupSession(uuid, arena.name, arena.worldTemplate, setupWorld,
-                System.currentTimeMillis());
-        session.seedFrom(arena);
+        SetupSession session = new SetupSession(uuid, template, setupWorld, System.currentTimeMillis());
+        session.seedFrom(layout);
         sessions.put(uuid, session);
         Teleports.to(playerRef, setupWorld, worldManager.templateSpawnPos());
-        playerRef.sendMessage(ChatUtil.success(Tr.t("setup.edit_started", "arena", arena.name)));
+        playerRef.sendMessage(ChatUtil.success(Tr.t("setup.edit_started", "arena", template)));
         playerRef.sendMessage(ChatUtil.info(Tr.t("setup.wand_given")));
         sendStepInstructions(playerRef, session);
         scheduler.schedule(() -> equipForSetup(setupWorld, uuid), 1, TimeUnit.SECONDS);
         return true;
-    }
-
-    /**
-     * {@code /aerowars setup mode <solo|coop|teams> [size]} — sets whether the arena is Solo (FFA) or a
-     * co-op Teams arena and, for teams, how many players share each island/team. Usable any time during
-     * the session (before saving).
-     */
-    public void setMode(PlayerRef playerRef, String modeArg, int size) {
-        SetupSession session = sessions.get(playerRef.getUuid());
-        if (session == null) {
-            playerRef.sendMessage(ChatUtil.error(Tr.t("setup.not_in_session")));
-            return;
-        }
-        String m = modeArg == null ? "" : modeArg.trim().toLowerCase();
-        boolean teams = m.equals("teams") || m.equals("coop") || m.equals("team");
-        if (teams) {
-            session.mode = GameMode.TEAMS;
-            session.teamSize = Math.max(2, size);
-        } else {
-            session.mode = GameMode.SOLO;
-            session.teamSize = 1;
-        }
-        String modeName = session.mode == GameMode.TEAMS
-                ? Tr.t("scoreboard.mode_teams") : Tr.t("scoreboard.mode_solo");
-        playerRef.sendMessage(ChatUtil.success(Tr.t("setup.mode_set", "mode", modeName, "size", session.teamSize)));
     }
 
     /** The configured spawn-wand item id (clicking a block with it marks a spawn). */
@@ -299,6 +291,47 @@ public class SetupSessionManager {
         });
     }
 
+    /**
+     * Removes every spawn wand from the admin's hotbar (unlocking the locked slot first). Called when the
+     * spawns step is finished so the wand can't linger into the chest steps.
+     */
+    private void removeWands(World world, UUID uuid) {
+        String wand = getSpawnWand();
+        if (world == null || wand == null || wand.isBlank()) {
+            return;
+        }
+        world.execute(() -> {
+            try {
+                PlayerRef pr = Universe.get().getPlayer(uuid);
+                if (pr == null) {
+                    return;
+                }
+                Store<EntityStore> store = world.getEntityStore().getStore();
+                Player player = store.getComponent(pr.getReference(), Player.getComponentType());
+                if (player == null) {
+                    return;
+                }
+                ItemContainer hotbar = player.getInventory().getHotbar();
+                if (hotbar == null) {
+                    return;
+                }
+                // Unlock the wand slot so it can actually be removed.
+                hotbar.setSlotFilter(FilterActionType.ADD, WAND_SLOT, SlotFilter.ALLOW);
+                hotbar.setSlotFilter(FilterActionType.REMOVE, WAND_SLOT, SlotFilter.ALLOW);
+                hotbar.setSlotFilter(FilterActionType.DROP, WAND_SLOT, SlotFilter.ALLOW);
+                // Sweep the whole hotbar (0..8) and drop any stack of the wand item.
+                for (short slot = 0; slot <= 8; slot++) {
+                    ItemStack stack = hotbar.getItemStack(slot);
+                    if (stack != null && wand.equals(stack.getItemId())) {
+                        hotbar.removeItemStackFromSlot(slot);
+                    }
+                }
+            } catch (Exception e) {
+                Console.warning("Failed to remove setup wand: " + e.getMessage());
+            }
+        });
+    }
+
     /** Unlocks the wand slot and clears the admin's inventory when setup ends. */
     private void unequipAfterSetup(World world, UUID uuid) {
         if (world == null) {
@@ -336,6 +369,7 @@ public class SetupSessionManager {
             return;
         }
         session.spawnPoints.add(Locations.centerOfBlock(pos));
+        click(playerRef);
         playerRef.sendMessage(ChatUtil.success(Tr.t("setup.spawn_added", "n", session.spawnPoints.size())));
     }
 
@@ -356,8 +390,103 @@ public class SetupSessionManager {
         // Capture position, block (chest type) and rotation so loot can key off them later.
         ChestLocation chest = new ChestLocation(Locations.centerOfBlock(pos), blockId, type, rotationIndex);
         session.addChest(chest);
+        click(playerRef);
+        // The PlaceBlockEvent rotation is the PROPOSED one; the engine may re-orient a directional block
+        // (like a chest) AFTER our handler, so the value we captured wouldn't reproduce the placed
+        // orientation in a match. Read the ACTUAL stored rotation a moment later and correct the record.
+        syncChestRotation(session, chest);
         int count = type == ChestType.MIDDLE ? session.middleChests.size() : session.normalChests.size();
         playerRef.sendMessage(ChatUtil.success(Tr.t("setup.chest_added", "type", type.name(), "n", count)));
+    }
+
+    /** Reads the block's real rotation index from the world (once placed) and updates the chest record. */
+    private void syncChestRotation(SetupSession session, ChestLocation chest) {
+        if (session == null || chest == null || chest.pos == null) {
+            return;
+        }
+        World world = session.setupWorld;
+        int bx = chest.pos.blockX();
+        int by = chest.pos.blockY();
+        int bz = chest.pos.blockZ();
+        scheduler.schedule(() -> world.execute(() -> {
+            try {
+                var accessor = world.getChunkIfLoaded(ChunkUtil.indexChunkFromBlock(bx, bz));
+                if (accessor != null) {
+                    int rot = accessor.getRotationIndex(bx, by, bz);
+                    if (rot >= 0) {
+                        chest.rotationIndex = rot;
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }), 300, TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Called by the break-block system when an admin breaks a block during setup: if that block is a recorded
+     * chest, drop it from the session (with a message + click cue). Returns true if a chest was removed. Other
+     * breaks are free edits of the throwaway world and produce no message.
+     */
+    public boolean handleChestBreak(PlayerRef playerRef, WorldPos pos) {
+        SetupSession session = sessions.get(playerRef.getUuid());
+        if (session == null || pos == null) {
+            return false;
+        }
+        if (removeChestAt(session.middleChests, pos)) {
+            click(playerRef);
+            playerRef.sendMessage(ChatUtil.success(Tr.t("setup.chest_broken", "type", ChestType.MIDDLE.name(),
+                    "n", session.middleChests.size())));
+            return true;
+        }
+        if (removeChestAt(session.normalChests, pos)) {
+            click(playerRef);
+            playerRef.sendMessage(ChatUtil.success(Tr.t("setup.chest_broken", "type", ChestType.NORMAL.name(),
+                    "n", session.normalChests.size())));
+            return true;
+        }
+        return false;
+    }
+
+    /** Removes the recorded chest sitting on {@code pos} (same block), if any. */
+    private boolean removeChestAt(List<ChestLocation> chests, WorldPos pos) {
+        for (int i = 0; i < chests.size(); i++) {
+            WorldPos cp = chests.get(i).pos;
+            if (cp != null && cp.blockX() == pos.blockX() && cp.blockY() == pos.blockY()
+                    && cp.blockZ() == pos.blockZ()) {
+                chests.remove(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Left-clicking the wand in the AIR (no block aimed at) marks the current step at the admin's own
+     * position — same as {@code /aerowars setup set}. Resolves the held item on the setup world thread and
+     * only acts when the wand is actually in hand (so a bare air-swing does nothing).
+     */
+    public void handleWandAirClick(PlayerRef playerRef) {
+        SetupSession session = sessions.get(playerRef.getUuid());
+        if (session == null) {
+            return;
+        }
+        World world = session.setupWorld;
+        UUID uuid = playerRef.getUuid();
+        world.execute(() -> {
+            try {
+                PlayerRef live = Universe.get().getPlayer(uuid);
+                if (live == null) {
+                    return;
+                }
+                Store<EntityStore> store = world.getEntityStore().getStore();
+                Player player = store.getComponent(live.getReference(), Player.getComponentType());
+                if (player == null || !isHoldingWand(player.getInventory().getItemInHand())) {
+                    return;
+                }
+                handleSet(live);
+            } catch (Exception ignored) {
+            }
+        });
     }
 
     /** /aerowars setup set — captures the admin's current position for the active step. */
@@ -371,6 +500,7 @@ public class SetupSessionManager {
         switch (session.step) {
             case SPAWN_POINTS -> {
                 session.spawnPoints.add(here);
+                click(playerRef);
                 playerRef.sendMessage(ChatUtil.success(Tr.t("setup.spawn_added", "n", session.spawnPoints.size())));
             }
             case SPECTATOR_SPAWN -> {
@@ -378,6 +508,7 @@ public class SetupSessionManager {
                 // Clear the old blue marker so the render loop redraws it at the new spot;
                 // don't auto-advance so the admin can see/adjust it, then /setup done.
                 SpawnMarkers.clear(playerRef);
+                click(playerRef);
                 playerRef.sendMessage(ChatUtil.success(Tr.t("setup.spectator_set")));
             }
             default -> playerRef.sendMessage(ChatUtil.warning(Tr.t("setup.step_" + session.step.name().toLowerCase())));
@@ -392,40 +523,65 @@ public class SetupSessionManager {
         }
         switch (action) {
             case "done" -> handleDone(playerRef, session);
-            case "undo" -> handleUndo(playerRef, session);
+            case "undo" -> handleUndo(playerRef, session, 1);
             case "skip" -> handleSkip(playerRef, session);
             case "save" -> handleSave(playerRef, session);
-            case "cancel" -> handleCancel(playerRef, session);
+            case "cancel", "exit" -> handleCancel(playerRef, session);
             default -> {
             }
         }
     }
 
-    /** Removes the last entry captured for the active step (spawn or chest). */
-    private void handleUndo(PlayerRef playerRef, SetupSession session) {
-        switch (session.step) {
-            case SPAWN_POINTS -> {
-                if (session.spawnPoints.isEmpty()) {
-                    playerRef.sendMessage(ChatUtil.warning(Tr.t("setup.nothing_to_undo")));
-                } else {
-                    session.spawnPoints.remove(session.spawnPoints.size() - 1);
-                    SpawnMarkers.clear(playerRef);
-                    playerRef.sendMessage(ChatUtil.success(Tr.t("setup.spawn_removed", "n", session.spawnPoints.size())));
-                }
-            }
-            case NORMAL_CHESTS -> undoLastChest(playerRef, session.normalChests);
-            case MIDDLE_CHESTS -> undoLastChest(playerRef, session.middleChests);
-            default -> playerRef.sendMessage(ChatUtil.warning(Tr.t("setup.nothing_to_undo")));
+    /** {@code /aerowars setup undo [n]} — resolves the session, then undoes up to n entries of the active step. */
+    public void handleUndo(PlayerRef playerRef, int count) {
+        SetupSession session = sessions.get(playerRef.getUuid());
+        if (session == null) {
+            playerRef.sendMessage(ChatUtil.error(Tr.t("setup.not_in_session")));
+            return;
         }
+        handleUndo(playerRef, session, count);
     }
 
-    private void undoLastChest(PlayerRef playerRef, List<ChestLocation> chests) {
-        if (chests.isEmpty()) {
-            playerRef.sendMessage(ChatUtil.warning(Tr.t("setup.nothing_to_undo")));
-        } else {
-            chests.remove(chests.size() - 1);
-            playerRef.sendMessage(ChatUtil.success(Tr.t("setup.chest_removed", "n", chests.size())));
+    /**
+     * Removes up to {@code count} of the most recent entries captured for the active step (spawns or chests).
+     * {@code count} defaults to 1; if it exceeds what's available, everything on the step is undone.
+     */
+    private void handleUndo(PlayerRef playerRef, SetupSession session, int count) {
+        int want = Math.max(1, count);
+        int removed;
+        switch (session.step) {
+            case SPAWN_POINTS -> removed = undoLast(session.spawnPoints, want);
+            case NORMAL_CHESTS -> removed = undoLast(session.normalChests, want);
+            case MIDDLE_CHESTS -> removed = undoLast(session.middleChests, want);
+            default -> {
+                playerRef.sendMessage(ChatUtil.warning(Tr.t("setup.nothing_to_undo")));
+                return;
+            }
         }
+        if (removed == 0) {
+            playerRef.sendMessage(ChatUtil.warning(Tr.t("setup.nothing_to_undo")));
+            return;
+        }
+        int remaining = switch (session.step) {
+            case SPAWN_POINTS -> session.spawnPoints.size();
+            case NORMAL_CHESTS -> session.normalChests.size();
+            case MIDDLE_CHESTS -> session.middleChests.size();
+            default -> 0;
+        };
+        // Force an immediate marker refresh so the removed cubes disappear at once (not on the next redraw).
+        SpawnMarkers.clear(playerRef);
+        click(playerRef);
+        playerRef.sendMessage(ChatUtil.success(Tr.t("setup.undone", "count", removed, "n", remaining)));
+    }
+
+    /** Pops up to {@code n} entries off the end of {@code list}; returns how many were actually removed. */
+    private int undoLast(List<?> list, int n) {
+        int removed = 0;
+        while (removed < n && !list.isEmpty()) {
+            list.remove(list.size() - 1);
+            removed++;
+        }
+        return removed;
     }
 
     /** Right-clicking a block near a spawn with the wand removes that spawn. */
@@ -482,8 +638,10 @@ public class SetupSessionManager {
         if (next == null) {
             return;
         }
-        if (session.step == SetupStep.SPAWN_POINTS || session.step == SetupStep.SPECTATOR_SPAWN) {
-            SpawnMarkers.clear(playerRef);
+        // Leaving the spawns step: the wand's job is done, so strip it from the inventory (chests are placed
+        // from the creative menu, not the wand). Markers are NOT cleared — the whole layout stays visible.
+        if (session.step == SetupStep.SPAWN_POINTS) {
+            removeWands(session.setupWorld, session.playerId);
         }
         session.step = next;
         if (next == SetupStep.CONFIRMATION) {
@@ -498,20 +656,12 @@ public class SetupSessionManager {
             playerRef.sendMessage(ChatUtil.error(Tr.t("setup.need_more_spawns")));
             return;
         }
-        Arena arena = session.toArena();
-        if (!arena.isComplete()) {
-            // Only reachable for a TEAMS arena without enough islands for two full teams.
-            playerRef.sendMessage(ChatUtil.error(Tr.t("setup.need_more_team_spawns", "n", session.teamSize * 2)));
-            return;
-        }
-        // Editing must still refuse if a match spun up on this arena mid-session.
-        if (session.editing && plugin.getMatchManager().isArenaInUse(arena.name)) {
-            playerRef.sendMessage(ChatUtil.error(Tr.t("setup.arena_in_use", "arena", arena.name)));
-            return;
-        }
-        arenaManager.saveArena(arena);
-        playerRef.sendMessage(ChatUtil.success(Tr.t("setup.saved", "arena", session.arenaName)));
-        closeSession(playerRef, session);
+
+        mapManager.saveMap(session.toLayout());
+        playerRef.sendMessage(ChatUtil.success(Tr.t("setup.saved", "arena", session.template)));
+        playerRef.sendMessage(ChatUtil.info(Tr.t("setup.saved_hint", "template", session.template)));
+        // Persist the world's block edits back into the template (so they survive into future matches).
+        closeSession(playerRef, session, true);
     }
 
     private void handleCancel(PlayerRef playerRef, SetupSession session) {
@@ -524,11 +674,20 @@ public class SetupSessionManager {
         SetupSession session = sessions.remove(uuid);
         if (session != null) {
             scheduler.schedule(() -> worldManager.deleteWorld(session.setupWorld), 3, TimeUnit.SECONDS);
-            Console.info("Setup session for arena " + session.arenaName + " ended (disconnect).");
+            Console.info("Setup session for map " + session.template + " ended (disconnect).");
         }
     }
 
     private void closeSession(PlayerRef playerRef, SetupSession session) {
+        closeSession(playerRef, session, false);
+    }
+
+    /**
+     * Ends a setup session: clears markers, unequips, returns the admin to the lobby, then (3s later, once
+     * the teleport settles and the admin has left) either saves the world's block edits back into the
+     * template ({@code saveToTemplate}, on a successful {@code save}) or just deletes the ephemeral world.
+     */
+    private void closeSession(PlayerRef playerRef, SetupSession session, boolean saveToTemplate) {
         SpawnMarkers.clear(playerRef);
         unequipAfterSetup(session.setupWorld, session.playerId);
         sessions.remove(session.playerId);
@@ -540,7 +699,12 @@ public class SetupSessionManager {
             Teleports.to(playerRef, lobby, spawn);
         }
         World world = session.setupWorld;
-        scheduler.schedule(() -> worldManager.deleteWorld(world), 3, TimeUnit.SECONDS);
+        String template = session.template;
+        if (saveToTemplate) {
+            scheduler.schedule(() -> worldManager.saveSetupToTemplate(world, template), 3, TimeUnit.SECONDS);
+        } else {
+            scheduler.schedule(() -> worldManager.deleteWorld(world), 3, TimeUnit.SECONDS);
+        }
     }
 
     private void sendStepInstructions(PlayerRef playerRef, SetupSession session) {
@@ -551,8 +715,7 @@ public class SetupSessionManager {
     }
 
     private void sendConfirmation(PlayerRef playerRef, SetupSession session) {
-        String mode = session.mode == GameMode.TEAMS ? "Teams x" + session.teamSize : "Solo";
-        playerRef.sendMessage(ChatUtil.info("Mode: " + mode
+        playerRef.sendMessage(ChatUtil.info("Map: " + session.template
                 + " | Spawns: " + session.spawnPoints.size()
                 + " | Normal: " + session.normalChests.size()
                 + " | Middle: " + session.middleChests.size()
@@ -571,7 +734,7 @@ public class SetupSessionManager {
                     sessions.remove(session.playerId);
                     worldManager.deleteWorld(session.setupWorld);
                 }
-                Console.info("Setup session for arena " + session.arenaName + " timed out.");
+                Console.info("Setup session for map " + session.template + " timed out.");
             }
         }
     }

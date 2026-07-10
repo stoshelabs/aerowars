@@ -58,7 +58,7 @@ public class PartyManager {
         int max = 0;
         for (dev.stoshe.aerowars.model.Arena a : plugin.getArenaManager().getAllArenas()) {
             if (a != null) {
-                max = Math.max(max, a.getMaxPlayers());
+                max = Math.max(max, plugin.getMapManager().maxPlayersFor(a));
             }
         }
         return max;

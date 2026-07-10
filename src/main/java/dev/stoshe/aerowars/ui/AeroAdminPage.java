@@ -56,7 +56,6 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
             {"saveinv", "admin.set_saveinv"},
             {"fireworks", "admin.set_fireworks"},
             {"scoreboard", "admin.set_scoreboard"},
-            {"hud", "admin.set_hud"},
             {"party", "admin.set_party"},
     };
 
@@ -409,8 +408,11 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
                         : Tr.t("scoreboard.mode_solo");
                 // Flag draft (chest-less / unplayable) arenas so admins see why one isn't in rotation.
                 String draftTag = a.draft ? "  " + Tr.t("admin.arena_draft_tag") : "";
-                String info = a.name + draftTag + "  {" + mode + ", " + a.getMaxPlayers() + "p, "
-                        + a.allChests().size() + " chests}";
+                dev.stoshe.aerowars.model.MapLayout aLayout = this.plugin.getMapManager().layoutFor(a);
+                int aMax = this.plugin.getMapManager().maxPlayersFor(a);
+                int aChests = aLayout == null ? 0 : aLayout.allChests().size();
+                String info = a.name + draftTag + "  {" + mode + ", " + aMax + "p, "
+                        + aChests + " chests}";
                 cb.set("#ArenaRow" + i + ".Visible", true);
                 cb.set("#ArenaName" + i + ".Text", info);
                 cb.set("#BtnArenaEdit" + i + ".Text", editBtn);
@@ -573,9 +575,10 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
                     this.playerRef.sendMessage(ChatUtil.error(Tr.t("setup.arena_in_use", "arena", a.name)));
                     reopen(player, ref, store, Tab.ARENAS);
                 } else {
-                    // Close the panel and drop the admin into an edit session (teleports to a setup world).
+                    // Close the panel and drop the admin into an edit session for the arena's PRIMARY
+                    // map (layout is per-map now; teleports to a setup world cloned from that template).
                     player.getPageManager().setPage(ref, store, Page.None);
-                    this.plugin.getSetupSessionManager().editSession(this.playerRef, a);
+                    this.plugin.getSetupSessionManager().editSession(this.playerRef, a.worldTemplate);
                 }
             }
             case "ArenaDelete" -> {
@@ -652,7 +655,6 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
             case "saveinv" -> c.Match.SaveInventory;
             case "fireworks" -> c.Effects.VictoryFireworks;
             case "scoreboard" -> c.Scoreboard.Enabled;
-            case "hud" -> c.Hud.Enabled;
             case "party" -> c.Party.Enabled;
             default -> false;
         };
@@ -670,7 +672,6 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
             case "saveinv" -> c.Match.SaveInventory = v;
             case "fireworks" -> c.Effects.VictoryFireworks = v;
             case "scoreboard" -> c.Scoreboard.Enabled = v;
-            case "hud" -> c.Hud.Enabled = v;
             case "party" -> c.Party.Enabled = v;
             default -> {
                 return;

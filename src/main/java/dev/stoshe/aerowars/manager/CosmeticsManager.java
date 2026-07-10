@@ -251,14 +251,17 @@ public class CosmeticsManager {
         return pc != null && pc.owned.contains(c.id);
     }
 
-    /** True when there is no economy provider (paid cosmetics are then claimable for free). */
-    private boolean noEconomy() {
-        return !plugin.getEconomyService().isAvailable();
+    /**
+     * True when the economy can't take money (no provider, or a deposit-only one). Paid cosmetics are
+     * then claimable for free — otherwise a purchase could never succeed and they'd be stuck locked.
+     */
+    private boolean cannotCharge() {
+        return !plugin.getEconomyService().canCharge();
     }
 
-    /** True if this cosmetic can be claimed for free right now (a {@code free} one, or a paid one with no economy). */
+    /** True if this cosmetic can be claimed for free right now (a {@code free} one, or a paid one we can't charge for). */
     public boolean isClaimable(Cosmetic c) {
-        return c != null && (c.isFree() || (c.isPurchase() && noEconomy()));
+        return c != null && (c.isFree() || (c.isPurchase() && cannotCharge()));
     }
 
     public boolean isSelected(UUID uuid, Cosmetic c) {

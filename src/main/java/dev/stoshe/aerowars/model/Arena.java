@@ -2,28 +2,36 @@ package dev.stoshe.aerowars.model;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 /**
- * Persistent definition of an arena/map. Match instances are spawned from a
- * copy of {@link #worldTemplate}. Spawn points are individual island spots; in
- * {@link GameMode#TEAMS} they are grouped into teams of {@link #teamSize}.
+ * Persistent definition of an arena. An arena is a lightweight wrapper of game rules (mode, team size)
+ * over one or more MAPS: each match clones one map from its pool and reads that map's {@link MapLayout}
+ * (spawns/chests/spectator). The physical layout lives PER MAP ({@code maps/<template>.json}), so several
+ * arenas can share the same map.
  */
 public final class Arena {
     public String name;
     public String displayName;
+    /** Primary map — the template this arena was created on (its layout is the representative one). */
     public String worldTemplate;
+    /**
+     * Alternate map templates for random rotation. Each match clones a random map from the full pool
+     * ({@link #worldTemplate} + these) WHEN {@link #randomMaps} is on. Every map here must have its own
+     * saved {@link MapLayout}.
+     */
+    public List<String> extraTemplates = new ArrayList<>();
+    /**
+     * Off by default. When true (and the pool has more than one map), each match picks a random map
+     * from {@link #templatePool()}; otherwise every match uses the primary {@link #worldTemplate}.
+     */
+    public boolean randomMaps = false;
     public GameMode mode = GameMode.SOLO;
     public int teamSize = 1;
 
-    public List<WorldPos> spawnPoints = new ArrayList<>();
-    public List<ChestLocation> normalChests = new ArrayList<>();
-    public List<ChestLocation> middleChests = new ArrayList<>();
-    public WorldPos spectatorSpawn;
-
     /**
-     * Draft arenas are hidden from matchmaking ({@link #isPlayable()} is false) even if structurally
-     * complete. An arena drops into draft when its chests are cleared (a chest-less SkyWars map is not
-     * meant to be played) and leaves draft when it is saved again with at least one chest.
+     * Draft arenas are hidden from matchmaking even if their map is complete. Toggled via
+     * {@code /aerowars arena <name> enable|disable} (and set when an arena's chests are cleared).
      */
     public boolean draft;
 
@@ -44,42 +52,37 @@ public final class Arena {
         return mode() == GameMode.TEAMS ? Math.max(1, teamSize) : 1;
     }
 
-    /** Number of team slots (islands) available. */
-    public int teamCount() {
-        int slots = spawnPoints == null ? 0 : spawnPoints.size();
-        return mode() == GameMode.TEAMS ? slots / effectiveTeamSize() : slots;
-    }
+    /** The full random-map pool: the primary map plus any alternates (deduped, non-blank). */
+    public List<String> templatePool() {
+        List<String> pool = new ArrayList<>();
 
-    public int getMaxPlayers() {
-        int slots = spawnPoints == null ? 0 : spawnPoints.size();
-        if (mode() == GameMode.TEAMS) {
-            return teamCount() * effectiveTeamSize();
+        if (worldTemplate != null && !worldTemplate.isBlank()) {
+            pool.add(worldTemplate);
         }
-        return slots;
-    }
 
-    public List<ChestLocation> allChests() {
-        List<ChestLocation> all = new ArrayList<>();
-        if (normalChests != null) {
-            all.addAll(normalChests);
+        if (extraTemplates != null) {
+            for (String t : extraTemplates) {
+                if (t != null && !t.isBlank() && !pool.contains(t)) {
+                    pool.add(t);
+                }
+            }
         }
-        if (middleChests != null) {
-            all.addAll(middleChests);
+
+        return pool;
+    }
+
+    /**
+     * The map a new match should clone. When {@link #randomMaps} is off (the default) this is always
+     * the primary {@link #worldTemplate}; when on, it's a random pick from the pool.
+     */
+    public String pickTemplate(Random random) {
+        List<String> pool = templatePool();
+
+        if (!randomMaps || pool.size() <= 1) {
+            return worldTemplate;
         }
-        return all;
-    }
 
-    /** A minimally playable arena needs at least 2 spawns and a spectator spawn. */
-    public boolean isComplete() {
-        return spawnPoints != null
-                && spawnPoints.size() >= 2
-                && spectatorSpawn != null
-                && (mode() == GameMode.SOLO || spawnPoints.size() >= effectiveTeamSize() * 2);
-    }
-
-    /** Structurally complete AND not a draft — i.e. eligible to be picked for a real match. */
-    public boolean isPlayable() {
-        return !draft && isComplete();
+        return pool.get(random.nextInt(pool.size()));
     }
 
     public String displayName() {

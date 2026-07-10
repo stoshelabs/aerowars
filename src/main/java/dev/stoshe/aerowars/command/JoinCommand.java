@@ -13,6 +13,7 @@ import dev.stoshe.aerowars.game.Party;
 import dev.stoshe.aerowars.manager.MatchManager;
 import dev.stoshe.aerowars.manager.PartyManager;
 import dev.stoshe.aerowars.util.ChatUtil;
+import dev.stoshe.aerowars.util.PermissionUtil;
 import dev.stoshe.aerowars.util.Tr;
 
 import java.util.UUID;
@@ -36,6 +37,12 @@ public class JoinCommand extends AbstractPlayerCommand {
     protected void execute(@Nonnull CommandContext context, @Nonnull Store<EntityStore> store,
             @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef playerRef, @Nonnull World world) {
         UUID uuid = playerRef.getUuid();
+
+        if (!PermissionUtil.canPlay(uuid)) {
+            playerRef.sendMessage(ChatUtil.error(Tr.t("general.no_permission")));
+            return;
+        }
+
         if (matchManager.getPlayerMatch(uuid) != null) {
             playerRef.sendMessage(ChatUtil.error(Tr.t("match.already_in_match")));
             return;

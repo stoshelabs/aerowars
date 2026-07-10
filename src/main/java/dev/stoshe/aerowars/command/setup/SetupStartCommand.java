@@ -10,7 +10,7 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dev.stoshe.aerowars.AeroWars;
-import dev.stoshe.aerowars.manager.ArenaManager;
+import dev.stoshe.aerowars.command.TemplateArgType;
 import dev.stoshe.aerowars.manager.SetupSessionManager;
 import dev.stoshe.aerowars.manager.WorldManager;
 import dev.stoshe.aerowars.util.ChatUtil;
@@ -20,22 +20,21 @@ import dev.stoshe.aerowars.util.Tr;
 import javax.annotation.Nonnull;
 import java.util.List;
 
-/** {@code /aerowars setup start <arena> <template>} — begins an arena setup session. */
+/**
+ * {@code /aerowars setup start <template>} — begins a MAP setup session on a world template. Builds the
+ * map's spawns/chests/spectator; create an arena for it afterwards with {@code /aerowars arena create}.
+ */
 public class SetupStartCommand extends AbstractPlayerCommand {
     private final SetupSessionManager setupManager;
     private final WorldManager worldManager;
-    private final ArenaManager arenaManager;
-    private final RequiredArg<String> arenaArg;
     private final RequiredArg<String> templateArg;
 
     public SetupStartCommand(@Nonnull AeroWars plugin) {
-        super("start", "Iniciar setup de arena");
+        super("start", "Iniciar setup de um mapa");
         this.setupManager = plugin.getSetupSessionManager();
         this.worldManager = plugin.getWorldManager();
-        this.arenaManager = plugin.getArenaManager();
-        this.arenaArg = withRequiredArg("arena", "Nome da arena", ArgTypes.STRING);
         this.templateArg = withRequiredArg("template", "Template de mundo", ArgTypes.STRING)
-                .withSuggestionOverride(new dev.stoshe.aerowars.command.TemplateArgType(worldManager));
+                .withSuggestionOverride(new TemplateArgType(worldManager));
     }
 
     @Override
@@ -45,37 +44,29 @@ public class SetupStartCommand extends AbstractPlayerCommand {
             playerRef.sendMessage(ChatUtil.error(Tr.t("general.no_permission")));
             return;
         }
-        String arena = arenaArg.get(context);
+
         String template = templateArg.get(context);
-        if (arena == null || template == null) {
+
+        if (template == null) {
             playerRef.sendMessage(ChatUtil.warning(Tr.t("setup.start_usage")));
             showTemplates(playerRef);
             return;
         }
-        if (!isValidName(arena)) {
-            playerRef.sendMessage(ChatUtil.error(Tr.t("setup.invalid_name")));
-            return;
-        }
-        if (arenaManager.hasArena(arena)) {
-            playerRef.sendMessage(ChatUtil.error(Tr.t("setup.already_exists")));
-            return;
-        }
+
         if (!worldManager.worldTemplateExists(template)) {
             playerRef.sendMessage(ChatUtil.error(Tr.t("setup.template_not_found", "template", template)));
             showTemplates(playerRef);
             return;
         }
-        setupManager.startSession(store, ref, playerRef, arena, template);
+
+        setupManager.startSession(store, ref, playerRef, template);
     }
 
     private void showTemplates(PlayerRef playerRef) {
         List<String> templates = worldManager.listWorldTemplates();
+
         if (!templates.isEmpty()) {
             playerRef.sendMessage(ChatUtil.info("Templates: " + String.join(", ", templates)));
         }
-    }
-
-    private boolean isValidName(String name) {
-        return name != null && name.length() >= 3 && name.length() <= 16 && name.matches("^[a-zA-Z0-9_]+$");
     }
 }

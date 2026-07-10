@@ -12,12 +12,12 @@ public class SetupCommand extends AbstractCommandCollection {
         super("setup", "Assistente de criação de arenas");
         addSubCommand(new SetupStartCommand(plugin));
         addSubCommand(new SetupEditCommand(plugin));
-        addSubCommand(new SetupModeCommand(plugin));
         addSubCommand(new SetupSetCommand(plugin));
         addSubCommand(new SetupActionCommand(plugin, "done", "Concluir passo atual"));
-        addSubCommand(new SetupActionCommand(plugin, "undo", "Desfazer o último spawn/baú do passo"));
+        addSubCommand(new SetupUndoCommand(plugin));
         addSubCommand(new SetupActionCommand(plugin, "skip", "Pular passo opcional"));
-        addSubCommand(new SetupActionCommand(plugin, "save", "Salvar a arena"));
+        addSubCommand(new SetupActionCommand(plugin, "save", "Salvar o mapa"));
         addSubCommand(new SetupActionCommand(plugin, "cancel", "Cancelar o setup"));
+        addSubCommand(new SetupActionCommand(plugin, "exit", "Cancelar tudo e sair do setup"));
     }
 }

@@ -27,11 +27,20 @@
     "prefix": "{#55ccff}[AeroWars] {#ffffff}",
     "no_permission": "{#ff5555}You don't have permission to do that.",
     "players_only": "{#ff5555}Only players can use this command.",
-    "reloaded": "{#55ff55}Configuration reloaded."
+    "reloaded": "{#55ff55}Reloaded config, language, loot and kits.",
+    "reload_failed": "{#ff5555}Reload failed — check the server console."
   },
   "update": {
     "available": "{#ffaa00}A new AeroWars version is available: {#55ff55}%version%",
     "download": "{#ffaa00}Download: {#55ffff}%url%"
+  },
+  "changelog": {
+    "title": "WHAT'S NEW",
+    "version": "AeroWars v%version%",
+    "btn_close": "Close",
+    "btn_dismiss": "Don't show until next version",
+    "more": "See the full release notes on GitHub.",
+    "unavailable": "{#ff5555}No changelog available — couldn't fetch the release notes from GitHub."
   },
   "match": {
     "joined": "{#55ff55}You joined a match {#aaaaaa}(%current%/%max%)",
@@ -44,6 +53,7 @@
     "world_failed": "{#ff5555}Failed to prepare the match world. Try again.",
     "countdown_started": "{#ffff55}The match starts in %seconds% seconds!",
     "countdown": "{#ffff55}Starting in %seconds%...",
+    "countdown_shortened": "{#ffff55}Arena full — starting in %seconds%!",
     "countdown_cancelled": "{#ffaa00}Countdown cancelled — not enough players.",
     "started": "{#55ff55}The match has started! Good luck!",
     "cages_open": "{#55ff55}The cages have opened!",
@@ -318,7 +328,6 @@
     "set_saveinv": "Save inventory",
     "set_fireworks": "Victory fireworks",
     "set_scoreboard": "Scoreboard",
-    "set_hud": "HUD",
     "set_party": "Party system",
     "section_inventory": "inventory",
     "section_backpack": "backpack",
@@ -432,16 +441,6 @@
     "time_left": "time remaining",
     "event_next": "Next: %event%"
   },
-  "hud": {
-    "waiting": "Waiting",
-    "starting": "Starting",
-    "fighting": "Fighting",
-    "ended": "Ended",
-    "spectating": "Spectating",
-    "alive": "Alive: %n%",
-    "kit": "Kit: %kit%",
-    "team": "Team: %team%"
-  },
   "kit": {
     "selected": "{#55ff55}Kit selected: %kit%",
     "not_found": "{#ff5555}Kit not found: %kit%",
@@ -475,7 +474,7 @@
     "arena_list_empty": "{#ffaa00}No arenas configured. Use /aerowars setup start."
   },
   "setup": {
-    "start_usage": "{#ffaa00}Usage: /aerowars setup start <arena> <template>",
+    "start_usage": "{#ffaa00}Usage: /aerowars setup start <template>",
     "invalid_name": "{#ff5555}Invalid name. Use 3-16 chars (letters, numbers, _).",
     "already_exists": "{#ff5555}An arena with that name already exists.",
     "template_not_found": "{#ff5555}World template not found: %template%",
@@ -494,10 +493,14 @@
     "nothing_to_undo": "{#ffaa00}Nothing to undo in this step.",
     "chest_added": "{#55ff55}%type% chest added (%n% total).",
     "chest_removed": "{#ffaa00}Chest removed. (%n% left)",
+    "chest_broken": "{#ffaa00}%type% chest broken and removed. (%n% left)",
+    "undone": "{#55ff55}Undone: %count% (%n% left).",
     "spectator_set": "{#55ff55}Spectator spawn set.",
     "need_more_spawns": "{#ff5555}You need at least 2 spawns.",
     "confirmation": "{#55ccff}Final step: {#ffffff}/aerowars setup save to save or cancel to discard.",
-    "saved": "{#55ff55}Arena '%arena%' saved!",
+    "saved": "{#55ff55}Map '%arena%' saved!",
+    "saved_hint": "{#55ccff}Now create an arena for it: /aerowars arena create <name> %template% <solo|teams> [teamSize]",
+    "map_not_found": "{#ff5555}No saved map '%template%'. Set it up first with /aerowars setup start %template%.",
     "cancelled": "{#ffaa00}Setup cancelled.",
     "timed_out": "{#ffaa00}Your setup session timed out.",
     "auto_ended": "{#ffaa00}Your setup session was ended automatically.",
@@ -506,6 +509,35 @@
     "edit_started": "{#55ff55}Editing arena '%arena%'. You were teleported. Adjust it, then /aerowars setup save.",
     "mode_set": "{#55ff55}Mode set: %mode% (%size% per team).",
     "need_more_team_spawns": "{#ff5555}A co-op arena needs at least %n% spawns (2 full teams)."
+  },
+  "maps": {
+    "usage": "{#ffaa00}Usage: /aerowars maps <arena> <add|remove|list|random> [template | on/off]",
+    "arena_not_found": "{#ff5555}Arena '%arena%' not found.",
+    "list": "{#55ccff}Map pool for '%arena%' (%rotation%): {#ffffff}%maps%",
+    "list_empty": "{#ffaa00}Arena '%arena%' has no maps in its pool.",
+    "added": "{#55ff55}Added map '%template%' to '%arena%'. Turn rotation on with: /aerowars maps %arena% random on",
+    "removed": "{#55ff55}Removed map '%template%' from '%arena%'.",
+    "already_in_pool": "{#ffaa00}'%template%' is already in this arena's pool.",
+    "not_in_pool": "{#ffaa00}'%template%' isn't an alternate map of this arena.",
+    "is_primary": "{#ff5555}'%template%' is the primary setup map and can't be removed (delete the arena instead).",
+    "random_on": "{#55ff55}Random map rotation ON for '%arena%' — each match now picks a random map from the pool.",
+    "random_off": "{#ffaa00}Random map rotation OFF for '%arena%' — matches use the primary map.",
+    "rotation_on": "rotation ON",
+    "rotation_off": "rotation OFF"
+  },
+  "arena": {
+    "create_usage": "{#ffaa00}Usage: /aerowars arena create <name> <map> <solo|teams> [teamSize]",
+    "created": "{#55ff55}Arena '%arena%' created on map '%map%' (%mode%, up to %max% players).",
+    "created_draft": "{#ffaa00}'%arena%' has no chests yet — it's a draft. Add chests via /aerowars setup edit, then enable it.",
+    "map_incomplete": "{#ff5555}Map '%map%' isn't set up enough (needs 2+ spawns and a spectator spawn) for this mode.",
+    "enabled": "{#55ff55}Arena '%arena%' enabled — back in matchmaking rotation.",
+    "disabled": "{#ffaa00}Arena '%arena%' disabled — removed from matchmaking (not deleted).",
+    "incomplete": "{#ff5555}Arena '%arena%' isn't set up enough to enable (its map needs 2+ spawns and a spectator spawn).",
+    "info": "{#55ccff}%arena% {#ffffff}— %status%, %mode%, up to %max% players. Maps: %maps%",
+    "status_active": "{#55ff55}active",
+    "status_disabled": "{#ffaa00}disabled",
+    "arg_size_name": "size",
+    "arg_size_desc": "Players per team (teams only)"
   },
   "world": {
     "usage": "{#ffaa00}Usage: /aerowars world create <name>",

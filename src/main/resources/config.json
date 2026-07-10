@@ -3,7 +3,7 @@
 
   "General": {
     "//": "Language file to use from the lang/ folder (en_us, pt_br, ...).",
-    "Language": "pt_br",
+    "Language": "en_us",
     "AutoSaveIntervalSeconds": 300,
     "//LobbyWorld": "World players are returned to when a match ends or they leave.",
     "LobbyWorld": "world",
@@ -87,8 +87,23 @@
     "Footer": "{#55ccff}stoshe.dev"
   },
 
-  "Hud": {
-    "Enabled": true
+  "//Effects": "Victory fireworks show and the winner's podium during the end celebration.",
+  "Effects": {
+    "VictoryFireworks": true,
+    "//FireworkParticles": "Native Hytale firework particle systems, one picked at random per burst.",
+    "FireworkParticles": [
+      "Firework_GS", "Firework_Mix2", "Firework_Mix3", "Firework_Mix4",
+      "Example_Fireworks", "Example_Firework_Mix", "Example_Firework_ColorBase",
+      "Cinematic_Fireworks_Red_XL", "Cinematic_Fire_Firework"
+    ],
+    "FireworkBursts": 14,
+    "FireworkDurationSeconds": 6,
+    "FireworkMaxRise": 24,
+    "FireworkScale": 1.5,
+    "//PodiumEnabled": "Raise the winner(s) onto a block podium above the arena centre during the celebration.",
+    "PodiumEnabled": true,
+    "PodiumBlock": "Glass_Block_Yellow",
+    "PodiumHeight": 8
   },
 
   "Party": {

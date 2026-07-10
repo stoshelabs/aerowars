@@ -1,8 +1,8 @@
 package dev.stoshe.aerowars.game;
 
-import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Runtime team within a match. In SOLO mode each player is their own team. */
 public final class Team {
@@ -10,8 +10,10 @@ public final class Team {
     public final String name;
     public final String colorHex;
     public final int spawnIndex;
-    private final Set<UUID> members = new LinkedHashSet<>();
-    private final Set<UUID> alive = new LinkedHashSet<>();
+    // Concurrent: add() runs on the command thread (a player joining) while the 1 Hz match scheduler
+    // concurrently reads/eliminates — a plain HashSet here risks a ConcurrentModificationException.
+    private final Set<UUID> members = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> alive = ConcurrentHashMap.newKeySet();
 
     private static final String[] NAMES = {
             "Vermelho", "Azul", "Verde", "Amarelo", "Rosa", "Ciano", "Laranja", "Branco"

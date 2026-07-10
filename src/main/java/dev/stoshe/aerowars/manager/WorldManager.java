@@ -146,7 +146,11 @@ public class WorldManager {
             }
             WorldConfig config = new WorldConfig();
             config.setDisplayName(name);
-            config.setWorldGenProvider(new VoidWorldGenProvider());
+            // Give the void an environment (biome/zone) + tint. Without it, grass/foliage render BLACK
+            // because their colour comes from the biome tint (the no-arg VoidWorldGenProvider has none).
+            config.setWorldGenProvider(new VoidWorldGenProvider(
+                    com.hypixel.hytale.server.core.universe.world.worldgen.provider.FlatWorldGenProvider.DEFAULT_TINT,
+                    "Env_Zone1_Plains"));
             config.setGameMode(GameMode.Creative);
             config.setFallDamageEnabled(false);
             config.setSpawningNPC(false);
@@ -166,8 +170,7 @@ public class WorldManager {
             Console.success("Created void template world: " + name);
             return world;
         } catch (Exception e) {
-            Console.error("Failed to create template world " + name + ": " + e.getMessage());
-            e.printStackTrace();
+            Console.error("Failed to create template world " + name + ": " + e);
             return null;
         }
     }
@@ -275,6 +278,20 @@ public class WorldManager {
             config.markChanged();
 
             World world = Universe.get().makeWorld(worldName, worldPath, config).join();
+            // The engine sometimes tears a just-created world down asynchronously (the flaky
+            // TriggerVolumesPlugin.onWorldRemoved NPE race): makeWorld().join() RETURNS a world that is
+            // removed a moment later, and a player teleported into it hangs until a read timeout. So give
+            // that race a moment to surface, then verify the world is still registered before handing it
+            // back — if it vanished, treat it as a failed attempt so the retry loop recreates it.
+            try {
+                Thread.sleep(250);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+            if (Universe.get().getWorld(worldName) == null) {
+                throw new IllegalStateException("world '" + worldName
+                        + "' was removed right after creation (flaky makeWorld race)");
+            }
             Console.success("Created world: " + worldName);
             return world;
         } catch (Exception e) {
@@ -326,6 +343,66 @@ public class WorldManager {
         } catch (Exception e) {
             Console.warning("Failed to evacuate players from " + world.getName() + ": " + e.getMessage());
         }
+    }
+
+    /**
+     * Persists the block edits made in a SETUP world back into its source TEMPLATE, so future clones
+     * (matches, re-edits) include them. Flushes + cleanly unloads the setup world (saving its chunks to
+     * disk), copies its {@code chunks/} + {@code resources/} over the template — keeping the template's own
+     * {@code config.json} — then removes the setup world dir. Returns true on success. Falls back to a plain
+     * delete of the setup world if anything goes wrong, so nothing is left orphaned.
+     */
+    public boolean saveSetupToTemplate(World setupWorld, String templateName) {
+        if (setupWorld == null || templateName == null || !worldTemplateExists(templateName)) {
+            if (setupWorld != null) {
+                deleteWorld(setupWorld);
+            }
+            return false;
+        }
+        String worldName = setupWorld.getName();
+        Path setupPath = Universe.get().getPath().resolve("worlds").resolve(worldName);
+        Path templatePath = new File(worldsDirectory, templateName).toPath();
+        boolean ok = false;
+        try {
+            evacuatePlayers(setupWorld);
+            // Turn OFF delete-on-remove so removeWorld SAVES (clean unload) instead of deleting, then flush.
+            try {
+                setupWorld.getWorldConfig().setDeleteOnRemove(false);
+                setupWorld.getWorldConfig().markChanged();
+            } catch (Exception ignored) {
+            }
+            try {
+                setupWorld.getChunkStore().getSaver().flush();
+            } catch (Exception ignored) {
+            }
+            Universe.get().removeWorld(worldName); // unloads + persists dirty chunks to setupPath
+            // Give the async unload/save a moment to finish writing the region files before we copy them.
+            try {
+                Thread.sleep(600);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+            // Overwrite the template's block data with the freshly-saved setup world's data.
+            if (Files.exists(setupPath.resolve("chunks"))) {
+                copyDirectory(setupPath.resolve("chunks"), templatePath.resolve("chunks"));
+            }
+            if (Files.exists(setupPath.resolve("resources"))) {
+                copyDirectory(setupPath.resolve("resources"), templatePath.resolve("resources"));
+            }
+            ok = true;
+            Console.success("Saved setup edits into template '" + templateName + "'.");
+        } catch (Exception e) {
+            Console.error("Failed to persist setup to template " + templateName + ": " + e.getMessage());
+        } finally {
+            // The setup world is no longer delete-on-remove, so clean its dir up now that data is copied.
+            try {
+                if (Files.exists(setupPath)) {
+                    deleteDirectory(setupPath);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return ok;
     }
 
     public void deleteWorld(World world) {

@@ -116,10 +116,12 @@ public class KitManager {
             return true;
         }
         if (kit.isPurchase()) {
-            // No economy provider installed → paid kits are free (otherwise they'd be unbuyable).
-            if (!dev.stoshe.aerowars.AeroWars.getInstance().getEconomyService().isAvailable()) {
+            // Economy can't take money (no provider, or a deposit-only one) → paid kits are free,
+            // otherwise they'd be permanently unbuyable AND not free (a dead end).
+            if (!dev.stoshe.aerowars.AeroWars.getInstance().getEconomyService().canCharge()) {
                 return true;
             }
+
             return ownsKit(uuid, kit.id);
         }
         return false;
@@ -149,20 +151,25 @@ public class KitManager {
     }
 
     private void seedDefaults() {
+        // NOTE: item ids follow the verified material-first convention used by the loot tables and the
+        // paid kits below (e.g. Armor_Iron_Chest, NOT Armor_Chest_Iron). Armor must use KitItem.ARMOR so
+        // it is worn, not dropped into the backpack. Glass_Block is bundled by this plugin (guaranteed).
         Kit warrior = new Kit("warrior", "Guerreiro", "Weapon_Sword_Iron");
-        warrior.items.add(new KitItem("Weapon_Sword_Iron", 1, 0));
-        warrior.items.add(new KitItem("Armor_Chest_Iron", 1));
-        warrior.items.add(new KitItem("Consumable_Apple", 5, 8));
+        warrior.items.add(new KitItem("Weapon_Sword_Iron", 1, 0, KitItem.HOTBAR));
+        warrior.items.add(new KitItem("Food_Bread", 5, 8, KitItem.HOTBAR));
+        warrior.items.add(new KitItem("Armor_Iron_Chest", 1, -1, KitItem.ARMOR));
+        warrior.items.add(new KitItem("Armor_Iron_Head", 1, -1, KitItem.ARMOR));
 
-        Kit archer = new Kit("archer", "Arqueiro", "Weapon_Bow_Wood");
-        archer.items.add(new KitItem("Weapon_Bow_Wood", 1, 0));
-        archer.items.add(new KitItem("Weapon_Arrow", 16, 1));
-        archer.items.add(new KitItem("Weapon_Sword_Stone", 1, 2));
+        Kit archer = new Kit("archer", "Arqueiro", "Weapon_Shortbow_Crude");
+        archer.items.add(new KitItem("Weapon_Shortbow_Crude", 1, 0, KitItem.HOTBAR));
+        archer.items.add(new KitItem("Weapon_Arrow_Crude", 16, 1, KitItem.HOTBAR));
+        archer.items.add(new KitItem("Weapon_Sword_Iron", 1, 2, KitItem.HOTBAR));
+        archer.items.add(new KitItem("Armor_Leather_Medium_Chest", 1, -1, KitItem.ARMOR));
 
-        Kit builder = new Kit("builder", "Construtor", "Block_Wool_White");
-        builder.items.add(new KitItem("Weapon_Sword_Stone", 1, 0));
-        builder.items.add(new KitItem("Block_Wool_White", 64, 1));
-        builder.items.add(new KitItem("Block_Wool_White", 64, 2));
+        Kit builder = new Kit("builder", "Construtor", "Glass_Block");
+        builder.items.add(new KitItem("Weapon_Sword_Iron", 1, 0, KitItem.HOTBAR));
+        builder.items.add(new KitItem("Glass_Block", 64, 1, KitItem.HOTBAR));
+        builder.items.add(new KitItem("Glass_Block", 64, 2, KitItem.HOTBAR));
 
         // --- Example PAID kit (bought with coins via the economy) ---
         Kit berserker = new Kit("berserker", "Berserker", "Weapon_Longsword_Iron");

@@ -243,7 +243,7 @@ public class AeroWarsPlaceholders extends PlaceholderExpansion {
                 }
                 return switch (suffix) {
                     case "_players" -> String.valueOf(playersOnArena(name));
-                    case "_max" -> String.valueOf(arena.getMaxPlayers());
+                    case "_max" -> String.valueOf(plugin.getMapManager().maxPlayersFor(arena));
                     case "_mode" -> arena.mode() == GameMode.TEAMS ? "teams" : "solo";
                     case "_state" -> arenaState(name);
                     default -> null;

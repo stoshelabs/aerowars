@@ -58,19 +58,21 @@ public class CombatControlSystem extends EntityEventSystem<EntityStore, Damage> 
             event.setCancelled(true);
             return;
         }
-        // A spectator (or hidden admin spectator) must never be able to deal damage.
+        // Resolve the attacker once. UUIDs must be compared with .equals() (not ==): each
+        // PlayerRef.getUuid() hands back a distinct instance, so identity checks are unreliable.
         UUID attacker = attackerOf(event, store);
-        if (attacker != null && attacker != victimUuid
+        boolean selfDamage = attacker != null && attacker.equals(victimUuid);
+        // A spectator (or hidden admin spectator) must never be able to deal damage.
+        if (attacker != null && !selfDamage
                 && (match.spectators.contains(attacker) || matchManager.isAdminSpectator(attacker))) {
             event.setCancelled(true);
             return;
         }
         // Friendly fire in team arenas.
         if (match.mode() == GameMode.TEAMS && !config.Match.FriendlyFire) {
-            UUID attackerUuid = attackerOf(event, store);
-            if (attackerUuid != null && attackerUuid != victimUuid) {
+            if (attacker != null && !selfDamage) {
                 Team victimTeam = match.teamOf(victimUuid);
-                Team attackerTeam = match.teamOf(attackerUuid);
+                Team attackerTeam = match.teamOf(attacker);
                 if (victimTeam != null && victimTeam == attackerTeam) {
                     event.setCancelled(true);
                 }

@@ -11,3 +11,12 @@ out/
 
 # OS
 .DS_Store
+
+# Internal planning
+ROADMAP.md
+CHANGELOG.md
+
+# Docs (VitePress)
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/

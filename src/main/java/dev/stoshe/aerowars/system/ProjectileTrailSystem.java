@@ -43,8 +43,6 @@ public class ProjectileTrailSystem extends RefChangeSystem<EntityStore, Projecti
     public void onComponentAdded(Ref<EntityStore> ref, ProjectileComponent projectile,
             Store<EntityStore> store, CommandBuffer<EntityStore> buffer) {
         try {
-            // DIAGNOSTIC (temporary): confirms the RefChangeSystem actually fires on projectile spawn.
-            Console.info("[arrowtrail] ProjectileComponent added to an entity");
             // The creator UUID isn't set yet when the ProjectileComponent is first added (shoot() sets it
             // a moment later), so we track by which match world the projectile is in and resolve the
             // shooter live each tick.

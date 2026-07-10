@@ -31,6 +31,16 @@ public final class EconomyService {
     }
 
     /**
+     * True when a provider is present AND able to take money from a player. Deposit-only providers
+     * (which can pay rewards but not withdraw) return false — callers should then treat paid content
+     * as free instead of leaving it unbuyable, since a purchase could never succeed.
+     */
+    public boolean canCharge() {
+        Provider p = ensureProvider();
+        return p != null && p.withdraw != null;
+    }
+
+    /**
      * Pay {@code amount} into the player's balance. Returns {@code true} if the
      * deposit went through. Non-positive amounts and a missing provider are
      * treated as no-ops (return {@code false} for "nothing paid").
@@ -168,10 +178,28 @@ public final class EconomyService {
                 return null;
             }
             Method deposit = api.getMethod("deposit", UUID.class, double.class);
-            return new Provider("eliteessentials", (uuid, amount) -> {
+            Provider p = new Provider("eliteessentials", (uuid, amount) -> {
                 deposit.invoke(null, uuid, amount);
                 return true;
             });
+            // Best-effort: wire charging support if this build exposes it. Each probe is independent,
+            // so partial support (e.g. balance but no withdraw) degrades gracefully to null.
+            try {
+                Method has = api.getMethod("has", UUID.class, double.class);
+                p.has = (uuid, amount) -> Boolean.TRUE.equals(has.invoke(null, uuid, amount));
+            } catch (Throwable ignored) {
+            }
+            try {
+                Method withdraw = api.getMethod("withdraw", UUID.class, double.class);
+                p.withdraw = (uuid, amount) -> Boolean.TRUE.equals(withdraw.invoke(null, uuid, amount));
+            } catch (Throwable ignored) {
+            }
+            try {
+                Method getBalance = api.getMethod("getBalance", UUID.class);
+                p.balance = (uuid) -> ((Number) getBalance.invoke(null, uuid)).doubleValue();
+            } catch (Throwable ignored) {
+            }
+            return p;
         } catch (Throwable ignored) {
             return null;
         }
@@ -185,10 +213,27 @@ public final class EconomyService {
                 return null;
             }
             Method deposit = api.getMethod("deposit", UUID.class, double.class, String.class);
-            return new Provider("ecotale", (uuid, amount) -> {
+            Provider p = new Provider("ecotale", (uuid, amount) -> {
                 deposit.invoke(null, uuid, amount, "AeroWars");
                 return true;
             });
+            // Best-effort charging support (Ecotale threads a source label through its mutations).
+            try {
+                Method has = api.getMethod("has", UUID.class, double.class);
+                p.has = (uuid, amount) -> Boolean.TRUE.equals(has.invoke(null, uuid, amount));
+            } catch (Throwable ignored) {
+            }
+            try {
+                Method withdraw = api.getMethod("withdraw", UUID.class, double.class, String.class);
+                p.withdraw = (uuid, amount) -> Boolean.TRUE.equals(withdraw.invoke(null, uuid, amount, "AeroWars"));
+            } catch (Throwable ignored) {
+            }
+            try {
+                Method getBalance = api.getMethod("getBalance", UUID.class);
+                p.balance = (uuid) -> ((Number) getBalance.invoke(null, uuid)).doubleValue();
+            } catch (Throwable ignored) {
+            }
+            return p;
         } catch (Throwable ignored) {
             return null;
         }

@@ -6,6 +6,7 @@ import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.math.vector.Transform;
 import com.hypixel.hytale.protocol.MovementStates;
 import com.hypixel.hytale.protocol.SavedMovementStates;
+import com.hypixel.hytale.server.core.entity.entities.player.movement.MovementManager;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.modules.entity.component.HiddenFromAdventurePlayers;
 import com.hypixel.hytale.server.core.modules.entity.component.Invulnerable;
@@ -66,6 +67,7 @@ public class MatchManager {
     private final AeroWarsConfig config;
     private final WorldManager worldManager;
     private final ArenaManager arenaManager;
+    private final dev.stoshe.aerowars.manager.MapManager mapManager;
     private final KitManager kitManager;
     private final LootManager lootManager;
 
@@ -82,6 +84,7 @@ public class MatchManager {
         this.config = plugin.getConfig();
         this.worldManager = plugin.getWorldManager();
         this.arenaManager = plugin.getArenaManager();
+        this.mapManager = plugin.getMapManager();
         this.kitManager = plugin.getKitManager();
         this.lootManager = plugin.getLootManager();
     }
@@ -96,11 +99,25 @@ public class MatchManager {
             return t;
         });
         scheduler.scheduleAtFixedRate(this::tickAll, 1, 1, TimeUnit.SECONDS);
+        // Periodic stats flush so a crash/kill (not a clean shutdown) loses at most one interval of
+        // kills/deaths instead of everything since boot. save() is a no-op unless something is dirty,
+        // and it runs on this same scheduler thread as the record* calls, so there's no data race.
+        int autoSave = Math.max(30, config.General.AutoSaveIntervalSeconds);
+        scheduler.scheduleAtFixedRate(this::autoSaveData, autoSave, autoSave, TimeUnit.SECONDS);
         // Cosmetic movement trails run well above the 1 Hz match tick so they read as a dense trail
         // coming off the body (point-emitting particles at ~7 Hz).
         scheduler.scheduleAtFixedRate(this::tickTrails, 500, 150, TimeUnit.MILLISECONDS);
         // Arrow/projectile trails sample even faster since projectiles move quickly.
         scheduler.scheduleAtFixedRate(this::tickArrowTrails, 500, 100, TimeUnit.MILLISECONDS);
+    }
+
+    /** Periodic best-effort flush of in-memory stats to disk/SQL (no-op when nothing changed). */
+    private void autoSaveData() {
+        try {
+            plugin.getStatsManager().save();
+        } catch (Exception e) {
+            Console.warning("[autosave] Failed to flush stats: " + e.getMessage());
+        }
     }
 
     private int trailTick;
@@ -405,23 +422,31 @@ public class MatchManager {
 
     private Match createMatch(Arena arena) {
         String id = UUID.randomUUID().toString().substring(0, 8);
-        World world = worldManager.createMatchWorld(id, arena.worldTemplate);
+        // Each match clones one map from the arena's pool; its layout (spawns/chests) lives per-map.
+        String template = arena.pickTemplate(random);
+        dev.stoshe.aerowars.model.MapLayout layout = mapManager.getLayout(template);
+        if (layout == null) {
+            Console.error("Cannot create match on arena " + arena.name + ": map '" + template
+                    + "' has no layout (run /aerowars setup start " + template + ").");
+            return null;
+        }
+        World world = worldManager.createMatchWorld(id, template);
         if (world == null) {
             return null;
         }
         plugin.suppressJoinMessagesFor(world.getName());
-        Match match = new Match(id, arena, world);
+        Match match = new Match(id, arena, world, layout);
         buildTeams(match);
         matches.put(id, match);
         // Cages are built per player as they join (see addPlayer) and removed when their island
         // empties (see eliminate) — an empty island shows no cage.
-        Console.info("Created match " + id + " on arena " + arena.name);
+        Console.info("Created match " + id + " on arena " + arena.name + " (map " + template + ")");
         return match;
     }
 
     private void buildTeams(Match match) {
         Arena arena = match.arena;
-        int teamCount = Math.max(1, arena.teamCount());
+        int teamCount = Math.max(1, match.layout.teamCount(arena.mode(), arena.effectiveTeamSize()));
         for (int i = 0; i < teamCount; i++) {
             int spawnIndex = arena.mode() == GameMode.TEAMS ? i * arena.effectiveTeamSize() : i;
             match.teams.add(new Team(i, spawnIndex));
@@ -444,24 +469,35 @@ public class MatchManager {
      * still has room, keeping party members together; otherwise the emptiest team is chosen.
      */
     public boolean addPlayer(Match match, PlayerRef playerRef, Team forcedTeam) {
-        if (match == null || !match.hasRoom()) {
+        if (match == null) {
             return false;
         }
         // Can't be building an arena AND playing — auto-finish any setup session before joining a match.
         plugin.getSetupSessionManager().endActiveSession(playerRef);
         UUID uuid = playerRef.getUuid();
-        Team team = pickTeam(match, forcedTeam);
-        if (team == null) {
-            return false;
+
+        // Reserve the slot atomically: checking capacity and adding the player must be one critical
+        // section, or two simultaneous /join calls can both pass the check and overfill the match/team.
+        Team team;
+        synchronized (match) {
+            if (!match.hasRoom()) {
+                return false;
+            }
+
+            team = pickTeam(match, forcedTeam);
+            if (team == null) {
+                return false;
+            }
+
+            team.add(uuid);
+            match.playerTeam.put(uuid, team);
+            match.alive.add(uuid);
         }
-        team.add(uuid);
-        match.playerTeam.put(uuid, team);
-        match.alive.add(uuid);
+
         match.names.put(uuid, playerRef.getUsername());
         playerMatch.put(uuid, match.id);
-        plugin.getStatsManager().recordGame(uuid, playerRef.getUsername());
 
-        WorldPos spawn = spawnFor(match.arena, team.spawnIndex);
+        WorldPos spawn = spawnFor(match, team.spawnIndex);
         if (spawn != null) {
             teleport(playerRef, match.world, Locations.centerOfBlock(spawn));
             // After the teleport settles (player in the match world, spawn chunk loaded):
@@ -477,7 +513,7 @@ public class MatchManager {
                     // A player's selected cage cosmetic themes their own island cage.
                     String cageBlock = plugin.getCosmeticsManager()
                             .selectedValue(uuid, dev.stoshe.aerowars.model.CosmeticCategory.CAGE);
-                    matchWorld.execute(() -> setCage(matchWorld, cageSpawn, false,
+                    matchWorld.execute(() -> setCage(match, matchWorld, cageSpawn, false,
                             match.arena.effectiveTeamSize(), cageBlock));
                 }
                 // Attach the HUD/scoreboard only now that the player is actually in the match
@@ -489,9 +525,9 @@ public class MatchManager {
         // Tell the OTHER participants that this player joined; the joiner only gets their own
         // colored "you joined" line below (not the third-person broadcast about themselves).
         broadcastExcept(match, uuid, Tr.t("match.player_joined", "player", playerRef.getUsername(),
-                "current", match.totalPlayers(), "max", match.arena.getMaxPlayers()));
+                "current", match.totalPlayers(), "max", match.maxPlayers()));
         playerRef.sendMessage(ChatUtil.success(Tr.t("match.joined",
-                "current", match.totalPlayers(), "max", match.arena.getMaxPlayers())));
+                "current", match.totalPlayers(), "max", match.maxPlayers())));
         if (match.arena.mode() == GameMode.TEAMS) {
             playerRef.sendMessage(ChatUtil.info(Tr.t("team.assigned", "team", team.name)));
         }
@@ -628,7 +664,7 @@ public class MatchManager {
         for (Arena arena : arenaManager.getPlayableArenas()) {
             boolean ok = keepTogether
                     ? arena.mode() == GameMode.TEAMS && arena.effectiveTeamSize() >= size
-                    : arena.getMaxPlayers() >= size;
+                    : mapManager.maxPlayersFor(arena) >= size;
             if (ok) {
                 fits.add(arena);
             }
@@ -708,7 +744,7 @@ public class MatchManager {
         removeHud(uuid);
         if (wasAlive && !match.state.isRunning()) {
             broadcastExcept(match, uuid, Tr.t("match.player_left", "player", match.nameOf(uuid),
-                    "current", match.totalPlayers(), "max", match.arena.getMaxPlayers()));
+                    "current", match.totalPlayers(), "max", match.maxPlayers()));
         }
         updateHud(match);
         checkWin(match);
@@ -754,9 +790,9 @@ public class MatchManager {
             admin.sendMessage(ChatUtil.error(Tr.t("admin.spectate_busy")));
             return false;
         }
-        WorldPos spec = match.arena.spectatorSpawn;
+        WorldPos spec = match.layout.spectatorSpawn;
         WorldPos target = spec != null ? spec
-                : (match.arena.spawnPoints.isEmpty() ? null : match.arena.spawnPoints.get(0));
+                : (match.layout.spawnPoints.isEmpty() ? null : match.layout.spawnPoints.get(0));
         if (target == null) {
             return false;
         }
@@ -819,7 +855,11 @@ public class MatchManager {
     // ---------------------------------------------------------------- countdown/start
 
     private void maybeStartCountdown(Match match) {
-        if (match.state == MatchState.WAITING && match.totalPlayers() >= minPlayers(match)) {
+        boolean ready = match.state == MatchState.WAITING
+                && match.totalPlayers() >= minPlayers(match)
+                && populatedTeams(match) >= 2;
+
+        if (ready) {
             match.state = MatchState.COUNTDOWN;
             match.countdownRemaining = config.Match.CountdownSeconds;
             broadcast(match, Tr.t("match.countdown_started", "seconds", match.countdownRemaining));
@@ -827,7 +867,24 @@ public class MatchManager {
     }
 
     private int minPlayers(Match match) {
-        return Math.max(2, Math.min(config.Match.MinPlayers, match.arena.getMaxPlayers()));
+        return Math.max(2, Math.min(config.Match.MinPlayers, match.maxPlayers()));
+    }
+
+    /**
+     * Number of teams that currently have at least one player. A match needs ≥2 to be an actual
+     * contest — without this a keep-together party that all lands on one team (or a single forced
+     * cluster) would start, then idle out the whole duration because no elimination can ever occur.
+     */
+    private int populatedTeams(Match match) {
+        int n = 0;
+
+        for (Team team : match.teams) {
+            if (!team.members().isEmpty()) {
+                n++;
+            }
+        }
+
+        return n;
     }
 
     private void startMatch(Match match) {
@@ -838,23 +895,27 @@ public class MatchManager {
         // (only occupied islands are loaded), then clear the shell on the world thread.
         int ts = match.arena.effectiveTeamSize();
         for (Team team : match.teams) {
-            WorldPos spawn = spawnFor(match.arena, team.spawnIndex);
+            WorldPos spawn = spawnFor(match, team.spawnIndex);
             if (spawn == null) {
                 continue;
             }
             World w = world;
             WorldPos s = spawn;
             long key = ChunkUtil.indexChunkFromBlock(spawn.blockX(), spawn.blockZ());
-            w.getChunkAsync(key).thenRun(() -> w.execute(() -> setCage(w, s, true, ts)));
+            w.getChunkAsync(key).thenRun(() -> w.execute(() -> setCage(match, w, s, true, ts)));
         }
         if (config.Loot.FillOnStart) {
             prepareChests(match, true);
             match.chestsFilled = true;
         }
         buildEventSchedule(match);
+        // Count a game played only now that the match actually starts — recording it on join
+        // inflated games/losses for anyone who joined and left (or a match that never started).
         // Kits + full heal for each living player.
         for (UUID uuid : new ArrayList<>(match.alive)) {
+            plugin.getStatsManager().recordGame(uuid, match.names.get(uuid));
             PlayerRef pr = Universe.get().getPlayer(uuid);
+
             if (pr != null) {
                 prepareForPlay(pr, match);
             }
@@ -874,7 +935,7 @@ public class MatchManager {
      */
     private void prepareChests(Match match, boolean place) {
         World world = match.world;
-        java.util.List<ChestLocation> chests = match.arena.allChests();
+        java.util.List<ChestLocation> chests = match.layout.allChests();
         for (ChestLocation chest : chests) {
             if (chest == null || chest.pos == null) {
                 continue;
@@ -1008,7 +1069,7 @@ public class MatchManager {
         if (type == dev.stoshe.aerowars.model.LootEventType.LOOT_UPGRADE) {
             match.firedUpgradeEvents++;
             java.util.List<ChestLocation> normals = new ArrayList<>();
-            for (ChestLocation chest : match.arena.allChests()) {
+            for (ChestLocation chest : match.layout.allChests()) {
                 if (chest != null && chest.pos != null && chest.type() == ChestType.NORMAL) {
                     normals.add(chest);
                 }
@@ -1059,11 +1120,11 @@ public class MatchManager {
             team.eliminate(uuid);
             // Clear the island cage once it empties before the match starts (no player, no cage).
             if (!match.state.isRunning() && team.members().isEmpty()) {
-                WorldPos spawn = spawnFor(match.arena, team.spawnIndex);
+                WorldPos spawn = spawnFor(match, team.spawnIndex);
                 if (spawn != null) {
                     World w = match.world;
                     WorldPos cs = spawn;
-                    w.execute(() -> setCage(w, cs, true, match.arena.effectiveTeamSize()));
+                    w.execute(() -> setCage(match, w, cs, true, match.arena.effectiveTeamSize()));
                 }
             }
         }
@@ -1088,14 +1149,11 @@ public class MatchManager {
             playerMatch.put(uuid, match.id);
             pr.sendMessage(ChatUtil.error(Tr.t("match.you_died")));
             pr.sendMessage(ChatUtil.info(Tr.t("match.now_spectating")));
-            WorldPos spec = match.arena.spectatorSpawn;
+            WorldPos spec = match.layout.spectatorSpawn;
             clearInventory(pr, match.world);
-            if (spec != null) {
-                teleport(pr, match.world, Locations.centerOfBlock(spec));
-            }
-            // Full spectator god-mode: invisible to players still fighting, creative-style flight,
-            // and invulnerable to all damage until they leave the match.
-            applySpectatorState(match.world, uuid);
+            // Teleport to the spectator spawn with full god-mode (invisible/invulnerable) and GUARANTEED
+            // flight on arrival (so they hover at the spawn instead of dropping).
+            sendToSpectatorSpawn(match, uuid, pr, spec);
             // Hand out the spectator hotbar (tracker + return-to-lobby), locked in place.
             giveSpectatorItems(match.world, uuid);
             if (config.Spectator.Enabled && pr != null) {
@@ -1140,12 +1198,18 @@ public class MatchManager {
     private void endMatch(Match match, Team winner) {
         match.state = MatchState.ENDING;
         match.countdownRemaining = Math.max(1, config.Match.EndCelebrationSeconds);
+
         if (winner != null) {
             for (UUID uuid : winner.members()) {
                 plugin.getStatsManager().recordWin(uuid, match.names.get(uuid));
                 awardEconomy(uuid, config.Rewards.Economy.WinAmount, "economy.reward_win");
             }
         }
+
+        // Persist the match's kills/deaths/wins immediately so a crash before the next auto-save
+        // or clean shutdown doesn't drop this game's results (leaderboards stay accurate).
+        autoSaveData();
+
         if (winner == null) {
             match.resultText = Tr.t("status.draw");
             broadcast(match, Tr.t("match.draw"));
@@ -1416,7 +1480,7 @@ public class MatchManager {
 
     /** Centre of the arena = centroid of its spawn points (at their average height). */
     private WorldPos arenaCenter(Match match) {
-        List<WorldPos> spawns = match.arena.spawnPoints;
+        List<WorldPos> spawns = match.layout.spawnPoints;
         if (spawns == null || spawns.isEmpty()) {
             return null;
         }
@@ -1593,12 +1657,20 @@ public class MatchManager {
         }
         switch (match.state) {
             case COUNTDOWN -> {
-                if (match.totalPlayers() < minPlayers(match)) {
+                if (match.totalPlayers() < minPlayers(match) || populatedTeams(match) < 2) {
                     match.state = MatchState.WAITING;
                     broadcast(match, Tr.t("match.countdown_cancelled"));
                     updateHud(match);
                     return;
                 }
+
+                // Early start: once the arena is full there's no reason to wait out the full timer —
+                // shorten the remaining countdown so a packed lobby gets going quickly.
+                if (match.totalPlayers() >= match.maxPlayers() && match.countdownRemaining > 5) {
+                    match.countdownRemaining = 5;
+                    broadcast(match, Tr.t("match.countdown_shortened", "seconds", match.countdownRemaining));
+                }
+
                 match.countdownRemaining--;
                 if (match.countdownRemaining <= 0) {
                     startMatch(match);
@@ -1651,7 +1723,7 @@ public class MatchManager {
      * the spectator spawn instead of letting them fall forever.
      */
     private void voidCheck(Match match) {
-        WorldPos spec = match.arena.spectatorSpawn;
+        WorldPos spec = match.layout.spectatorSpawn;
         if (spec == null) {
             return;
         }
@@ -1661,7 +1733,7 @@ public class MatchManager {
         if (match.state == MatchState.ACTIVE) {
             for (UUID uuid : new ArrayList<>(match.alive)) {
                 PlayerRef pr = Universe.get().getPlayer(uuid);
-                if (pr != null && Locations.fromTransform(pr.getTransform()).y < voidY) {
+                if (isBelowVoid(pr, voidY)) {
                     handleDeath(uuid, null);
                 }
             }
@@ -1676,26 +1748,36 @@ public class MatchManager {
         }
     }
 
+    /**
+     * True when the player is loaded and currently below the void plane. A null transform (e.g. a
+     * cross-world teleport in flight) counts as "not below" so the 1&nbsp;Hz tick never NPEs.
+     */
+    private boolean isBelowVoid(PlayerRef pr, double voidY) {
+        if (pr == null) {
+            return false;
+        }
+        var t = pr.getTransform();
+        return t != null && Locations.fromTransform(t).y < voidY;
+    }
+
     private void respawnIfBelow(Match match, UUID uuid, double voidY, WorldPos spec) {
         PlayerRef pr = Universe.get().getPlayer(uuid);
-        if (pr != null && Locations.fromTransform(pr.getTransform()).y < voidY) {
-            teleport(pr, match.world, Locations.centerOfBlock(spec));
-            // Re-arm the full spectator state after the void return, as if they just started spectating
-            // (flight/invuln/invis/creative), in case anything was lost while falling.
-            applySpectatorState(match.world, uuid);
+        if (isBelowVoid(pr, voidY)) {
+            // Re-arm the full spectator state after the void return (flight/invuln/invis), guaranteeing
+            // flight on arrival so they don't immediately fall back into the void.
+            sendToSpectatorSpawn(match, uuid, pr, spec);
         }
     }
 
     /** Puts a spectator back at the spectator spawn and re-arms their god-mode (used on spectator "death"). */
     private void respawnSpectator(Match match, UUID uuid) {
-        WorldPos spec = match.arena.spectatorSpawn;
+        WorldPos spec = match.layout.spectatorSpawn;
         if (spec == null) {
             return;
         }
         PlayerRef pr = Universe.get().getPlayer(uuid);
         if (pr != null) {
-            teleport(pr, match.world, Locations.centerOfBlock(spec));
-            applySpectatorState(match.world, uuid);
+            sendToSpectatorSpawn(match, uuid, pr, spec);
         }
     }
 
@@ -1752,8 +1834,8 @@ public class MatchManager {
     /** Void threshold: 20 blocks below the lowest island spawn. */
     private double arenaVoidY(Match match) {
         double minY = Double.MAX_VALUE;
-        if (match.arena.spawnPoints != null) {
-            for (WorldPos p : match.arena.spawnPoints) {
+        if (match.layout.spawnPoints != null) {
+            for (WorldPos p : match.layout.spawnPoints) {
                 minY = Math.min(minY, p.y);
             }
         }
@@ -1804,6 +1886,10 @@ public class MatchManager {
             ItemContainer c = kitContainer(inv, item.container);
             if (c != null && item.slot >= 0) {
                 c.setItemStackForSlot((short) item.slot, stack);
+            } else if (c != null && item.container != KitItem.HOTBAR) {
+                // Armor/utility/tools/etc. with no explicit slot: place it into its OWN section so armor
+                // auto-equips to the matching body slot, instead of dumping it loose into the backpack.
+                c.addItemStack(stack);
             } else {
                 inv.getCombinedBackpackStorageHotbar().addItemStack(stack);
             }
@@ -1980,6 +2066,37 @@ public class MatchManager {
         return false;
     }
 
+    /** Debounce for the raw mouse-click spectator path (Pressed can arrive in quick pairs / double-clicks). */
+    private final Map<UUID, Long> lastSpecMouse = new ConcurrentHashMap<>();
+
+    /**
+     * Spectator hotbar via the raw {@code PlayerMouseButtonEvent} — unlike the block break/use/place events,
+     * this fires even when clicking OPEN AIR, so the tracker/lobby tools work no matter where the spectator
+     * aims. Debounced and marshalled onto the world thread. This is now the SOLE trigger for the spec items
+     * (the block-interaction systems no longer route them, to avoid firing twice on a block-aimed click).
+     */
+    public void handleSpectatorMouse(PlayerRef pr) {
+        if (pr == null || !config.Spectator.Enabled || !isSpectator(pr.getUuid())) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        Long last = lastSpecMouse.get(pr.getUuid());
+        if (last != null && now - last < 300L) {
+            return;
+        }
+        lastSpecMouse.put(pr.getUuid(), now);
+        World world = Universe.get().getWorld(pr.getWorldUuid());
+        if (world == null) {
+            return;
+        }
+        world.execute(() -> {
+            try {
+                trySpectatorItemClick(pr, world.getEntityStore().getStore());
+            } catch (Exception ignored) {
+            }
+        });
+    }
+
     /**
      * Routes a spectator's hotbar action: the tracker item opens the living-player teleport modal, the
      * lobby item returns them to the lobby.
@@ -2023,22 +2140,79 @@ public class MatchManager {
                 if (store.getComponent(ref, HiddenFromAdventurePlayers.getComponentType()) == null) {
                     store.addComponent(ref, HiddenFromAdventurePlayers.getComponentType());
                 }
-                try {
-                    // Grant flight AND put them actively airborne. Passing an empty MovementStates left
-                    // flying=false, which overrode the saved "can fly" flag — that's why spectators
-                    // couldn't fly. Both the saved (ability) and the active (current) flags must be true.
-                    MovementStates active = new MovementStates();
-                    active.flying = true;
-                    Player.applyMovementStates(ref, new SavedMovementStates(true), active, store);
-                    // Keep the player in their current (Adventure/survival) game mode — only the flight
-                    // STATE is granted. We deliberately do NOT switch to Creative (the user doesn't want
-                    // a creative spectator); Invulnerable already covers safety while flying.
-                } catch (Exception ignored) {
-                }
+                // Grant REAL flight (canFly on the MovementManager, like Creative) while keeping the
+                // player's current game mode — applyMovementStates alone does NOT enable flight in Adventure.
+                grantFlight(pr, ref, store, true);
             } catch (Exception e) {
                 Console.warning("applySpectatorState failed: " + e.getMessage());
             }
         });
+    }
+
+    /**
+     * Teleports a spectator to the spectator spawn and GUARANTEES they arrive already flying. The teleport
+     * applies on the next world tick and the arrival/landing can clear the active {@code flying} flag, so
+     * flight is re-asserted a few ticks after the move settles — a spectator must never fall at the spawn.
+     */
+    private void sendToSpectatorSpawn(Match match, UUID uuid, PlayerRef pr, WorldPos spec) {
+        if (match == null || pr == null) {
+            return;
+        }
+        if (spec != null) {
+            teleport(pr, match.world, Locations.centerOfBlock(spec));
+        }
+        applySpectatorState(match.world, uuid);
+        scheduler.schedule(() -> applyFlight(match.world, uuid), 350, TimeUnit.MILLISECONDS);
+    }
+
+    /** (Re)applies creative-style flight (canFly ability + active flying) to a player, keeping their mode. */
+    private void applyFlight(World world, UUID uuid) {
+        if (world == null || uuid == null) {
+            return;
+        }
+        world.execute(() -> {
+            try {
+                PlayerRef pr = Universe.get().getPlayer(uuid);
+                if (pr == null) {
+                    return;
+                }
+                Store<EntityStore> store = world.getEntityStore().getStore();
+                grantFlight(pr, pr.getReference(), store, true);
+            } catch (Exception ignored) {
+            }
+        });
+    }
+
+    /**
+     * Grants or revokes REAL flight independent of game mode by flipping {@code MovementSettings.canFly} on
+     * the player's {@link MovementManager} — the exact field the engine sets when switching to Creative —
+     * and the active flying state. {@code Player.applyMovementStates} alone only sends the flag and does NOT
+     * enable flight in Adventure, which is why spectators couldn't actually fly. Revoke restores the
+     * game-mode defaults (Adventure → canFly=false) so flight never leaks back to the lobby.
+     */
+    private void grantFlight(PlayerRef pr, Ref<EntityStore> ref, Store<EntityStore> store, boolean enable) {
+        if (pr == null || ref == null || store == null) {
+            return;
+        }
+        try {
+            MovementManager mm = store.getComponent(ref, MovementManager.getComponentType());
+            if (mm != null) {
+                if (enable) {
+                    mm.getSettings().canFly = true;
+                    mm.getDefaultSettings().canFly = true;
+                    mm.update(pr.getPacketHandler());
+                } else {
+                    mm.resetDefaultsAndUpdate(ref, store);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            MovementStates active = new MovementStates();
+            active.flying = enable;
+            Player.applyMovementStates(ref, new SavedMovementStates(enable), active, store);
+        } catch (Exception ignored) {
+        }
     }
 
     /** Removes spectator god-mode (invisible/invulnerable/flight) using the player's current-world ref. */
@@ -2056,10 +2230,8 @@ public class MatchManager {
                 Store<EntityStore> store = world.getEntityStore().getStore();
                 store.removeComponentIfExists(ref, Invulnerable.getComponentType());
                 store.removeComponentIfExists(ref, HiddenFromAdventurePlayers.getComponentType());
-                try {
-                    Player.applyMovementStates(ref, new SavedMovementStates(false), new MovementStates(), store);
-                } catch (Exception ignored) {
-                }
+                // Revoke flight (restore game-mode defaults) so nothing leaks into the lobby.
+                grantFlight(playerRef, ref, store, false);
                 // Unlock the spectator-item slots so the pre-match inventory can be restored freely.
                 Player player = store.getComponent(ref, Player.getComponentType());
                 if (player != null && config.Spectator.Enabled) {
@@ -2108,8 +2280,12 @@ public class MatchManager {
     // ---------------------------------------------------------------- cages
 
     /** Builds (air=false) or clears (air=true) a hollow cage around a spawn. */
-    private void setCage(World world, WorldPos spawn, boolean air, int teamSize) {
-        setCage(world, spawn, air, teamSize, null);
+    private void setCage(Match match, World world, WorldPos spawn, boolean air, int teamSize) {
+        setCage(match, world, spawn, air, teamSize, null);
+    }
+
+    private static String blockKey(int x, int y, int z) {
+        return x + "," + y + "," + z;
     }
 
     /** Vivid glass colours cycled for the "rainbow" cage cosmetic. */
@@ -2123,7 +2299,7 @@ public class MatchManager {
         return RAINBOW_GLASS[random.nextInt(RAINBOW_GLASS.length)];
     }
 
-    private void setCage(World world, WorldPos spawn, boolean air, int teamSize, String blockOverride) {
+    private void setCage(Match match, World world, WorldPos spawn, boolean air, int teamSize, String blockOverride) {
         if (!config.Cages.Enabled) {
             return;
         }
@@ -2147,14 +2323,33 @@ public class MatchManager {
                     if (!shell) {
                         continue;
                     }
+                    String key = blockKey(x, y, z);
                     try {
                         if (air) {
-                            // Keep the floor beneath the player so they don't drop.
-                            if (y == by - 1) {
-                                continue;
+                            // Restore exactly what the cage overwrote (floor included), so the arena is left
+                            // untouched. No snapshot (e.g. a legacy cage) → clear the shell but keep the floor.
+                            dev.stoshe.aerowars.model.BlockSnapshot snap =
+                                    match == null ? null : match.cageBlocks.remove(key);
+                            if (snap != null) {
+                                world.setBlock(x, y, z, snap.id(), snap.rotation());
+                            } else if (y != by - 1) {
+                                world.setBlock(x, y, z, "Empty", 0);
                             }
-                            world.setBlock(x, y, z, "Empty", 0);
                         } else {
+                            // Snapshot the original block BEFORE overwriting it, so opening the cage can put it
+                            // back verbatim. Guard against re-snapshotting our own glass on a rebuild.
+                            if (match != null && !match.cageBlocks.containsKey(key)) {
+                                String origId = "Empty";
+                                try {
+                                    var bt = world.getBlockType(x, y, z);
+                                    if (bt != null && bt.getId() != null) {
+                                        origId = bt.getId();
+                                    }
+                                } catch (Exception ignored) {
+                                }
+                                // Cages overwrite ground/air, whose rotation is irrelevant — restore with 0.
+                                match.cageBlocks.put(key, new dev.stoshe.aerowars.model.BlockSnapshot(origId, 0));
+                            }
                             world.setBlock(x, y, z, rainbow ? randomGlassColor() : glass, 0);
                         }
                     } catch (Exception ignored) {
@@ -2166,11 +2361,8 @@ public class MatchManager {
 
     // ---------------------------------------------------------------- misc
 
-    private WorldPos spawnFor(Arena arena, int index) {
-        if (arena.spawnPoints == null || index < 0 || index >= arena.spawnPoints.size()) {
-            return null;
-        }
-        return arena.spawnPoints.get(index);
+    private WorldPos spawnFor(Match match, int index) {
+        return match.layout == null ? null : match.layout.spawnAt(index);
     }
 
     private void broadcast(Match match, String message) {
@@ -2221,6 +2413,24 @@ public class MatchManager {
         }
         startMatch(match);
         return true;
+    }
+
+    /**
+     * Admin abort: force-ends the match the caller is currently in — whether they're playing or
+     * hidden-spectating it. Returns false if they aren't associated with any live match.
+     */
+    public boolean forceStop(UUID uuid) {
+        Match match = getPlayerMatch(uuid);
+        if (match != null) {
+            return adminEndMatch(match.id);
+        }
+
+        String spectating = adminSpectatorMatch.get(uuid);
+        if (spectating != null) {
+            return adminEndMatch(spectating);
+        }
+
+        return false;
     }
 
     /** Selects a kit for a player, if allowed at the current phase. */
@@ -2284,10 +2494,13 @@ public class MatchManager {
             playerRef.sendMessage(ChatUtil.error(Tr.t("kit.no_permission")));
             return false;
         }
-        if (!plugin.getEconomyService().isAvailable()) {
+        // Unreachable for the can't-charge case (isUnlocked already grants those free above), but kept
+        // as a defensive guard so a purchase is never silently attempted without charging support.
+        if (!plugin.getEconomyService().canCharge()) {
             playerRef.sendMessage(ChatUtil.error(Tr.t("cosmetics.msg_no_economy")));
             return false;
         }
+
         if (!plugin.getEconomyService().charge(playerRef.getUuid(), kit.cost)) {
             playerRef.sendMessage(ChatUtil.error(Tr.t("cosmetics.msg_insufficient")));
             return false;

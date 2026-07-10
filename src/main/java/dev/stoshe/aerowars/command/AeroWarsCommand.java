@@ -2,6 +2,8 @@ package dev.stoshe.aerowars.command;
 
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractCommandCollection;
 import dev.stoshe.aerowars.AeroWars;
+import dev.stoshe.aerowars.command.arena.ArenaCommand;
+import dev.stoshe.aerowars.command.maps.MapsCommand;
 import dev.stoshe.aerowars.command.party.PartyCommand;
 import dev.stoshe.aerowars.command.setup.SetupCommand;
 import dev.stoshe.aerowars.command.world.WorldCommand;
@@ -19,7 +21,10 @@ public class AeroWarsCommand extends AbstractCommandCollection {
         addSubCommand(new ListCommand(plugin));
         addSubCommand(new KitCommand(plugin));
         addSubCommand(new StartCommand(plugin));
+        addSubCommand(new StopCommand(plugin));
         addSubCommand(new SetLobbyCommand(plugin));
+        addSubCommand(new ReloadCommand(plugin));
+        addSubCommand(new ChangelogCommand(plugin));
         addSubCommand(new AdminCommand(plugin));
         addSubCommand(new HelpCommand(plugin));
         addSubCommand(new StatsCommand(plugin));
@@ -32,5 +37,7 @@ public class AeroWarsCommand extends AbstractCommandCollection {
         addSubCommand(new SetupCommand(plugin));
         addSubCommand(new WandCommand(plugin));
         addSubCommand(new WorldCommand(plugin));
+        addSubCommand(new MapsCommand(plugin));
+        addSubCommand(new ArenaCommand(plugin));
     }
 }

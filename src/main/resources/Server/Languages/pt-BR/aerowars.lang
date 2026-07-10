@@ -1,7 +1,7 @@
 items.AeroWars_SpecTracker.name = Rastreador de Jogadores
-items.AeroWars_SpecTracker.description = Clique-esquerdo ou direito num bloco para abrir o rastreador e teleportar até jogadores vivos.
+items.AeroWars_SpecTracker.description = Clique em qualquer lugar (até no ar) para abrir o rastreador e teleportar até jogadores vivos.
 items.AeroWars_SpecLobby.name = Voltar ao Lobby
-items.AeroWars_SpecLobby.description = Clique-esquerdo ou direito num bloco para sair da partida e voltar ao lobby.
+items.AeroWars_SpecLobby.description = Clique em qualquer lugar (até no ar) para sair da partida e voltar ao lobby.
 
 items.AeroWars_SetupWand.name = Varinha de Setup (AeroWars)
 items.AeroWars_SetupWand.description = Clique-esquerdo num bloco para marcar um spawn. Botão direito perto de um remove.

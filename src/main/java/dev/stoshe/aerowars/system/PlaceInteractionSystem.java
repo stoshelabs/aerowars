@@ -69,7 +69,7 @@ public class PlaceInteractionSystem extends EntityEventSystem<EntityStore, Place
             return;
         }
         // Spectator hotbar: RIGHT-click with a placeable spec tool (e.g. the bed) fires its action instead
-        // of placing it (a bed's right-click is a PlaceBlockEvent, not a UseBlockEvent).
+        // of placing it. The AIR case is handled by PlayerMouseButtonEvent; this is the block path.
         if (matchManager.trySpectatorItemClick(playerRef, store)) {
             event.setCancelled(true);
             return;

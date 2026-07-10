@@ -9,6 +9,7 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dev.stoshe.aerowars.AeroWars;
 import dev.stoshe.aerowars.manager.ArenaManager;
+import dev.stoshe.aerowars.manager.MapManager;
 import dev.stoshe.aerowars.model.Arena;
 import dev.stoshe.aerowars.util.ChatUtil;
 import dev.stoshe.aerowars.util.Tr;
@@ -19,10 +20,12 @@ import java.util.List;
 /** {@code /aerowars list} — lists configured arenas. */
 public class ListCommand extends AbstractPlayerCommand {
     private final ArenaManager arenaManager;
+    private final MapManager mapManager;
 
     public ListCommand(@Nonnull AeroWars plugin) {
         super("list", "Listar arenas");
         this.arenaManager = plugin.getArenaManager();
+        this.mapManager = plugin.getMapManager();
     }
 
     @Override
@@ -39,7 +42,7 @@ public class ListCommand extends AbstractPlayerCommand {
                     "arena", arena.displayName(),
                     "mode", arena.mode().name().toLowerCase(),
                     "min", 2,
-                    "max", arena.getMaxPlayers())));
+                    "max", mapManager.maxPlayersFor(arena))));
         }
     }
 }

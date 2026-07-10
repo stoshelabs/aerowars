@@ -10,7 +10,6 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dev.stoshe.aerowars.AeroWars;
 import dev.stoshe.aerowars.game.Match;
-import dev.stoshe.aerowars.game.Team;
 import dev.stoshe.aerowars.model.AeroWarsConfig;
 import dev.stoshe.aerowars.model.GameMode;
 import dev.stoshe.aerowars.model.MatchState;
@@ -22,14 +21,14 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Attaches and drives the per-player {@link dev.stoshe.aerowars.ui.MatchHud}.
- * The Hytale HUD manager surface is reached reflectively (same approach as the
+ * Attaches and drives the per-player side {@link dev.stoshe.aerowars.ui.ScoreboardHud}. Headline
+ * events (countdown, time-left, winner) are shown as transient fading titles by MatchManager, not a
+ * persistent panel. The Hytale HUD manager surface is reached reflectively (same approach as the
  * Plots plugin) so we stay resilient to server-build differences.
  */
 public class HudManager {
     private final AeroWars plugin;
     private final AeroWarsConfig config;
-    private final Map<UUID, dev.stoshe.aerowars.ui.StatusHud> statuses = new ConcurrentHashMap<>();
     private final Map<UUID, dev.stoshe.aerowars.ui.ScoreboardHud> boards = new ConcurrentHashMap<>();
 
     public HudManager(AeroWars plugin) {
@@ -38,7 +37,7 @@ public class HudManager {
     }
 
     public void updateMatch(Match match) {
-        if (match == null || (!config.Hud.Enabled && !config.Scoreboard.Enabled)) {
+        if (match == null || !config.Scoreboard.Enabled) {
             return;
         }
         for (UUID uuid : match.alive) {
@@ -94,32 +93,6 @@ public class HudManager {
         return match.mode() == GameMode.TEAMS ? Tr.t("scoreboard.mode_teams") : Tr.t("scoreboard.mode_solo");
     }
 
-    private String statusMain(Match match, UUID uuid) {
-        if (match.spectators.contains(uuid) && match.state == MatchState.ACTIVE) {
-            return Tr.t("status.spectating");
-        }
-        return switch (match.state) {
-            case WAITING -> Tr.t("status.waiting");
-            case COUNTDOWN -> Tr.t("status.countdown", "seconds", Math.max(0, match.countdownRemaining));
-            case ACTIVE -> timerText(match);
-            case ENDING, CLEANUP -> match.resultText == null || match.resultText.isBlank()
-                    ? Tr.t("status.ended") : match.resultText;
-        };
-    }
-
-    private String statusSub(Match match, UUID uuid) {
-        return switch (match.state) {
-            case WAITING -> Tr.t("status.waiting_sub", "current", match.totalPlayers(), "min", minPlayersFor(match));
-            case COUNTDOWN -> Tr.t("status.countdown_sub");
-            case ACTIVE -> match.spectators.contains(uuid) ? Tr.t("status.spectating_sub") : Tr.t("status.active_sub");
-            case ENDING, CLEANUP -> "";
-        };
-    }
-
-    private int minPlayersFor(Match match) {
-        return Math.max(2, Math.min(config.Match.MinPlayers, match.arena.getMaxPlayers()));
-    }
-
     private String timeLabel(Match match) {
         return switch (match.state) {
             case COUNTDOWN -> Tr.t("scoreboard.time_starting");
@@ -153,9 +126,8 @@ public class HudManager {
     }
 
     public void remove(UUID uuid) {
-        dev.stoshe.aerowars.ui.StatusHud status = statuses.remove(uuid);
         dev.stoshe.aerowars.ui.ScoreboardHud board = boards.remove(uuid);
-        if (status == null && board == null) {
+        if (board == null) {
             return;
         }
         PlayerRef pr = Universe.get().getPlayer(uuid);
@@ -167,25 +139,16 @@ public class HudManager {
             world.execute(() -> {
                 // Hide first (pushes Visible:false to the client) so the HUD disappears even if the
                 // reflective detach below silently fails or the player already changed worlds.
-                if (status != null) {
-                    status.hide();
-                    detach(world, pr, status);
-                }
-                if (board != null) {
-                    board.hide();
-                    detach(world, pr, board);
-                }
+                board.hide();
+                detach(world, pr, board);
             });
         }
     }
 
     public void shutdown() {
-        java.util.Set<UUID> all = new java.util.HashSet<>(statuses.keySet());
-        all.addAll(boards.keySet());
-        for (UUID uuid : all) {
+        for (UUID uuid : new java.util.HashSet<>(boards.keySet())) {
             remove(uuid);
         }
-        statuses.clear();
         boards.clear();
     }
 
@@ -196,18 +159,6 @@ public class HudManager {
             return match.aliveTeams().size();
         }
         return match.alive.size();
-    }
-
-    private String phaseText(Match match, UUID uuid) {
-        if (match.spectators.contains(uuid)) {
-            return Tr.t("hud.spectating");
-        }
-        return switch (match.state) {
-            case WAITING -> Tr.t("hud.waiting");
-            case COUNTDOWN -> Tr.t("hud.starting");
-            case ACTIVE -> Tr.t("hud.fighting");
-            case ENDING, CLEANUP -> Tr.t("hud.ended");
-        };
     }
 
     private String timerText(Match match) {
@@ -224,18 +175,6 @@ public class HudManager {
             return "--:--";
         }
         return String.format("%02d:%02d", seconds / 60, seconds % 60);
-    }
-
-    private String kitText(Match match, UUID uuid) {
-        if (!config.Kits.Enabled) {
-            return "";
-        }
-        String kit = match.selectedKits.getOrDefault(uuid, config.Kits.DefaultKit);
-        Team team = match.teamOf(uuid);
-        if (match.mode() == GameMode.TEAMS && team != null) {
-            return Tr.t("hud.team", "team", team.name) + "  " + Tr.t("hud.kit", "kit", kit);
-        }
-        return Tr.t("hud.kit", "kit", kit);
     }
 
     // ---------------------------------------------------------------- reflection glue

@@ -13,6 +13,7 @@ import dev.stoshe.aerowars.AeroWars;
 import dev.stoshe.aerowars.manager.QueueManager;
 import dev.stoshe.aerowars.model.GameMode;
 import dev.stoshe.aerowars.util.ChatUtil;
+import dev.stoshe.aerowars.util.PermissionUtil;
 import dev.stoshe.aerowars.util.Tr;
 
 import javax.annotation.Nonnull;
@@ -34,6 +35,11 @@ public class QueueCommand extends AbstractPlayerCommand {
     @Override
     protected void execute(@Nonnull CommandContext context, @Nonnull Store<EntityStore> store,
             @Nonnull Ref<EntityStore> ref, @Nonnull PlayerRef playerRef, @Nonnull World world) {
+        if (!PermissionUtil.canPlay(playerRef.getUuid())) {
+            playerRef.sendMessage(ChatUtil.error(Tr.t("general.no_permission")));
+            return;
+        }
+
         String modeStr = modeArg.get(context);
         GameMode mode = GameMode.SOLO;
         if (modeStr != null && !modeStr.isBlank()) {

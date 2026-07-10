@@ -4,13 +4,13 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.arguments.system.OptionalArg;
-import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
 import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dev.stoshe.aerowars.AeroWars;
+import dev.stoshe.aerowars.manager.SetupSessionManager;
 import dev.stoshe.aerowars.util.ChatUtil;
 import dev.stoshe.aerowars.util.PermissionUtil;
 import dev.stoshe.aerowars.util.Tr;
@@ -18,19 +18,17 @@ import dev.stoshe.aerowars.util.Tr;
 import javax.annotation.Nonnull;
 
 /**
- * {@code /aerowars setup mode <solo|coop> [size]} — sets whether the arena being built is Solo (FFA) or a
- * co-op Teams arena, and for co-op how many players share each team/island.
+ * {@code /aerowars setup undo [n]} — undoes the last spawn/chest of the active step. The optional count
+ * undoes up to n at once; if it exceeds what's available, everything on the step is undone. Defaults to 1.
  */
-public class SetupModeCommand extends AbstractPlayerCommand {
-    private final AeroWars plugin;
-    private final RequiredArg<String> modeArg;
-    private final OptionalArg<String> sizeArg;
+public class SetupUndoCommand extends AbstractPlayerCommand {
+    private final SetupSessionManager setupManager;
+    private final OptionalArg<Integer> countArg;
 
-    public SetupModeCommand(@Nonnull AeroWars plugin) {
-        super("mode", "Definir modo da arena (solo|coop [tamanho])");
-        this.plugin = plugin;
-        this.modeArg = withRequiredArg("modo", "solo|coop", ArgTypes.STRING);
-        this.sizeArg = withOptionalArg("tamanho", "jogadores por time (coop)", ArgTypes.STRING);
+    public SetupUndoCommand(@Nonnull AeroWars plugin) {
+        super("undo", "Desfazer o(s) último(s) spawn/baú do passo");
+        this.setupManager = plugin.getSetupSessionManager();
+        this.countArg = withOptionalArg("quantidade", "Quantos desfazer (padrão 1)", ArgTypes.INTEGER);
     }
 
     @Override
@@ -40,16 +38,7 @@ public class SetupModeCommand extends AbstractPlayerCommand {
             playerRef.sendMessage(ChatUtil.error(Tr.t("general.no_permission")));
             return;
         }
-        String mode = modeArg.get(context);
-        int size = 2;
-        String raw = sizeArg.get(context);
-        if (raw != null && !raw.isBlank()) {
-            try {
-                size = Integer.parseInt(raw.trim());
-            } catch (NumberFormatException ignored) {
-                // keep default
-            }
-        }
-        plugin.getSetupSessionManager().setMode(playerRef, mode, size);
+        Integer count = countArg.get(context);
+        setupManager.handleUndo(playerRef, count == null ? 1 : count);
     }
 }

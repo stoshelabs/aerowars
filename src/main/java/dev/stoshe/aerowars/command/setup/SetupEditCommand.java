@@ -10,22 +10,23 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dev.stoshe.aerowars.AeroWars;
-import dev.stoshe.aerowars.model.Arena;
+import dev.stoshe.aerowars.command.MapArgType;
 import dev.stoshe.aerowars.util.ChatUtil;
 import dev.stoshe.aerowars.util.PermissionUtil;
 import dev.stoshe.aerowars.util.Tr;
 
 import javax.annotation.Nonnull;
 
-/** {@code /aerowars setup edit <arena>} — re-opens an existing arena in the setup wizard to adjust it. */
+/** {@code /aerowars setup edit <template>} — re-opens an existing MAP in the setup wizard to adjust it. */
 public class SetupEditCommand extends AbstractPlayerCommand {
     private final AeroWars plugin;
-    private final RequiredArg<String> arenaArg;
+    private final RequiredArg<String> templateArg;
 
     public SetupEditCommand(@Nonnull AeroWars plugin) {
-        super("edit", "Editar uma arena existente");
+        super("edit", "Editar um mapa existente");
         this.plugin = plugin;
-        this.arenaArg = withRequiredArg("arena", "Nome da arena", ArgTypes.STRING);
+        this.templateArg = withRequiredArg("template", "Mapa a editar", ArgTypes.STRING)
+                .withSuggestionOverride(new MapArgType(plugin.getMapManager()));
     }
 
     @Override
@@ -35,12 +36,8 @@ public class SetupEditCommand extends AbstractPlayerCommand {
             playerRef.sendMessage(ChatUtil.error(Tr.t("general.no_permission")));
             return;
         }
-        String name = arenaArg.get(context);
-        Arena arena = name == null ? null : plugin.getArenaManager().getArena(name);
-        if (arena == null) {
-            playerRef.sendMessage(ChatUtil.error(Tr.t("setup.arena_not_found", "arena", String.valueOf(name))));
-            return;
-        }
-        plugin.getSetupSessionManager().editSession(playerRef, arena);
+
+        String template = templateArg.get(context);
+        plugin.getSetupSessionManager().editSession(playerRef, template);
     }
 }

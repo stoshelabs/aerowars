@@ -17,7 +17,6 @@ public final class AeroWarsConfig {
     public Kits Kits = new Kits();
     public Rewards Rewards = new Rewards();
     public Scoreboard Scoreboard = new Scoreboard();
-    public Hud Hud = new Hud();
     public Effects Effects = new Effects();
     public Party Party = new Party();
     public Platform Platform = new Platform();
@@ -218,8 +217,30 @@ public final class AeroWarsConfig {
         public String Footer = "{#55ccff}stoshe.dev";
     }
 
-    public static final class Hud {
-        public boolean Enabled = true;
+    /**
+     * Copies every top-level section reference from {@code other} into this instance. Used by the
+     * runtime {@code /aerowars reload}: managers hold THIS config object and read nested sections
+     * ({@code config.Match.X}) live, so swapping the section refs here propagates new values to them
+     * without reconstructing anything.
+     */
+    public void applyFrom(AeroWarsConfig other) {
+        if (other == null) {
+            return;
+        }
+
+        General = other.General;
+        Setup = other.Setup;
+        Match = other.Match;
+        Cages = other.Cages;
+        Loot = other.Loot;
+        Kits = other.Kits;
+        Rewards = other.Rewards;
+        Scoreboard = other.Scoreboard;
+        Effects = other.Effects;
+        Party = other.Party;
+        Platform = other.Platform;
+        Spectator = other.Spectator;
+        Database = other.Database;
     }
 
     /** Fills nulls left by a sparse config file so callers never NPE. */
@@ -236,7 +257,6 @@ public final class AeroWarsConfig {
         if (Rewards.WinnerCommands == null) Rewards.WinnerCommands = new ArrayList<>();
         if (Rewards.Economy == null) Rewards.Economy = new Economy();
         if (Scoreboard == null) Scoreboard = new Scoreboard();
-        if (Hud == null) Hud = new Hud();
         if (Effects == null) Effects = new Effects();
         if (Party == null) Party = new Party();
         if (Platform == null) Platform = new Platform();

@@ -3,12 +3,15 @@ package dev.stoshe.aerowars.system;
 import com.hypixel.hytale.component.Archetype;
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;
+import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
+import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dev.stoshe.aerowars.AeroWars;
+import dev.stoshe.aerowars.ui.ChangelogPage;
 import dev.stoshe.aerowars.util.ChatUtil;
 import dev.stoshe.aerowars.util.PermissionUtil;
 import dev.stoshe.aerowars.util.Tr;
@@ -62,8 +65,28 @@ public class UpdateNotificationSystem extends EntityTickingSystem<EntityStore> {
                 playerRef.sendMessage(ChatUtil.warning(Tr.t("update.available", "version", plugin.getLatestVersion())));
                 playerRef.sendMessage(ChatUtil.info(Tr.t("update.download", "url", UpdateChecker.RELEASES_URL)));
             }
+
+            // Admin-only "what's new" popup, once per release (until dismissed / a newer version ships).
+            if (plugin.getChangelogManager().shouldAutoShow(uuid)) {
+                Ref<EntityStore> ref = playerRef.getReference();
+                Player player = store.getComponent(ref, Player.getComponentType());
+
+                if (player != null) {
+                    ChangelogPage.open(player, ref, store, playerRef, plugin);
+                }
+            }
+
             joinTime.put(uuid, 999999.0f); // notified — don't repeat
         }
+    }
+
+    /**
+     * Forgets a player's per-session state on disconnect, so the changelog popup is re-evaluated on their
+     * next join. "Close" is meant to be temporary (see it again next time); only "Don't show again" — which
+     * persists in {@link dev.stoshe.aerowars.manager.ChangelogManager} — keeps it hidden until a new version.
+     */
+    public void forget(UUID uuid) {
+        joinTime.remove(uuid);
     }
 
     @Override
