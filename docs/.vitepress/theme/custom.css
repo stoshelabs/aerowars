@@ -45,27 +45,28 @@
    ============================================================ */
 .VPHero.has-image .container {
   flex-direction: column !important;
-  align-items: flex-start !important;
-  text-align: left !important;
+  align-items: center !important;
+  text-align: center !important;
 }
 .VPHero .main {
   order: 1 !important;
-  max-width: 640px;
+  max-width: 720px;
+  margin: 0 auto !important;
 }
 .VPHero.has-image .tagline {
-  margin: 0 !important;
+  margin: 0 auto !important;
 }
 .VPHero.has-image .actions {
-  justify-content: flex-start !important;
+  justify-content: center !important;
 }
 .VPHero .image {
-  order: -1 !important;              /* logo sits above the text */
-  margin: 0 0 1.75rem 0 !important;  /* drop VitePress' negative margins */
+  order: -1 !important;                 /* logo sits above the text */
+  margin: 0 auto 1.75rem auto !important; /* centered, no negative margins */
   max-width: 100% !important;
 }
 .VPHero .image-container {
   position: static !important;
-  margin: 0 !important;
+  margin: 0 auto !important;
   width: auto !important;
   height: auto !important;
   max-width: 100% !important;
