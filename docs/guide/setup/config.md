@@ -6,7 +6,7 @@ AeroWars is configured through `config.json` in its data folder. Edit it and run
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `General.Language` | `"en_us"` | Language file loaded from the `lang/` folder (`en_us` / `pt_br`). |
+| `General.Language` | `"en_us"` | Language file loaded from the `lang/` folder (`en_us` / `pt_br`). Every message, menu, title and command hint comes from it. Your exported copy overrides the bundled text; keys it lacks fall back to the bundled file, so after an update delete (or merge) it to pick up reworded lines. |
 | `General.AutoSaveIntervalSeconds` | `300` | How often stats/data are auto-saved. |
 | `General.LobbyWorld` | `"world"` | World players return to after a match. |
 | `General.LobbySpawn` | `""` | Optional `x,y,z,yaw,pitch` lobby spawn; empty = world default. Set easily with `/aerowars setlobby`. |
@@ -21,21 +21,24 @@ AeroWars is configured through `config.json` in its data folder. Edit it and run
 | `Match.MaxDurationSeconds` | `900` | Max match length before time-up resolution. |
 | `Match.CountdownSeconds` | `15` | Pre-start countdown (shortens to 5s when the arena fills). |
 | `Match.StartGraceSeconds` | `3` | Grace delay at start before cages open / combat. |
-| `Match.EndCelebrationSeconds` | `30` | Length of the end/victory celebration. |
+| `Match.EndCelebrationSeconds` | `15` | Length of the end/victory celebration. Victory fireworks keep launching for this whole window. |
 | `Match.EmptyMatchDeletionSeconds` | `30` | Delay before an emptied match/world is torn down. |
 | `Match.FriendlyFire` | `false` | Allow team damage (Teams arenas only). |
 | `Match.AllowSpectators` | `true` | Whether spectators are permitted. |
 | `Match.SpectateOnDeath` | `true` | Dead players become spectators instead of leaving. |
 | `Match.SaveInventory` | `true` | Save inventory + game mode on join, restore on leave; players enter in Adventure. |
+| `Match.RandomizeSpawns` | `true` | Shuffle which island (spawn point) each player/team starts on per match. When off, islands fill in order (1, 2, 3…). |
+| `Match.AnnounceWinner` | `true` | Tell everyone on the server who isn't in the match who won it and on which arena. The text is `match.win_announce_solo` / `match.win_announce_team` in the language files, so it follows `General.Language`. |
 
 ## Cages
+
+Cages are now **prefabs** (`.prefab.json` files in the `cages/` folder), not a hard-coded box — see [Cages](/guide/features/cages).
 
 | Key | Default | Description |
 | --- | --- | --- |
 | `Cages.Enabled` | `true` | Build countdown holding cages around each spawn. |
-| `Cages.BlockId` | `"Glass_Block"` | Cage block. Ships colored variants (`Glass_Block_Red`, `_Blue`, `_Green`, `_Cyan`, `_Yellow`, `_Lime`, `_Orange`, `_Pink`, `_Purple`, `_Magenta`, `_White`, `_Black`). |
-| `Cages.Radius` | `1` | Cage radius in blocks. |
-| `Cages.Height` | `2` | Cage height in blocks. |
+| `Cages.FallImmunitySeconds` | `5` | Seconds of fall-damage immunity for everyone from match start (when the cages drop), so a high cage drop can't hurt players on landing. Only fall damage is waived; `0` disables it. |
+| Cage orientation | — | A cage's **rotation** (degrees) and **`faceMiddle`** flag now live on its **cosmetic** entry in `cosmetics.json`, not here — so a cage's whole definition is in one place. See [Cages → Orienting a cage](../features/cages#orienting-a-cage). |
 
 ## Loot
 
@@ -56,12 +59,18 @@ The loot events system has its own page — see [Loot & Events](/guide/setup/loo
 | `Kits.Enabled` | `true` | Enable the kit selection system. |
 | `Kits.DefaultKit` | `"warrior"` | Kit given when a player hasn't chosen one. |
 | `Kits.SelectionDuringCountdown` | `true` | Allow opening the kit menu during the countdown. |
+| `Kits.PersistLastKit` | `true` | Remember each player's last-selected kit across matches (they keep it until they pick another). Off = every match starts on `DefaultKit` until selected. |
+| `Kits.WaitingItems` | `true` | Give waiting players (in their cage) a locked hotbar: a kit-selector item (opens the kit menu) and a return-to-lobby item. Non-droppable; removed when the match starts. |
+| `Kits.SelectorItem` | `"AeroWars_KitSelector"` | Item id of the waiting-phase kit-selector tool. |
+| `Kits.SelectorSlot` | `0` | Hotbar slot of the kit-selector item. |
+| `Kits.LobbyItem` | `"AeroWars_SpecLobby"` | Item id of the waiting-phase return-to-lobby tool. |
+| `Kits.LobbySlot` | `8` | Hotbar slot of the return-to-lobby item. |
 
 ## Rewards
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `Rewards.WinnerCommands[]` | one broadcast line | Console commands run on win; `{player}` and `{arena}` placeholders. |
+| `Rewards.WinnerCommands[]` | `[]` | Extra commands run on a solo win; `{player}` and `{arena}` placeholders, supports `broadcast <message>`. Empty by default — the winner announcement itself is `Match.AnnounceWinner`, which is translated. Older configs' default broadcast line is removed automatically. |
 | `Rewards.Economy.Enabled` | `false` | Pay coins on kill/win via an installed economy plugin. |
 | `Rewards.Economy.WinAmount` | `100` | Coins paid to each winner. |
 | `Rewards.Economy.KillAmount` | `10` | Coins paid per kill. |
@@ -103,6 +112,7 @@ See [Economy](/guide/integrations/economy) for provider details.
 | Key | Default | Description |
 | --- | --- | --- |
 | `Spectator.Enabled` | `true` | Give the spectator hotbar on death. |
+| `Spectator.NativeMode` | `true` | Run spectators on Hytale's native spectator mode (flight, no-clip, invulnerable, hidden from living players). `false` uses AeroWars' own flight + invulnerability + hiding. See [Spectating](/guide/features/spectating). |
 | `Spectator.TrackerSlot` | `0` | Hotbar slot of the living-player tracker. |
 | `Spectator.TrackerItem` | `"AeroWars_SpecTracker"` | Item id of the tracker. |
 | `Spectator.LobbySlot` | `8` | Hotbar slot of the return-to-lobby item. |
@@ -122,7 +132,7 @@ Used when `/aerowars world create` builds a fresh void template.
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `Setup.SpawnWand` | `"AeroWars_SetupWand"` | Item id of the setup wand (a breaking tool; left-click marks spawns). |
+| `Setup.SpawnWand` | `"AeroWars_SetupWand"` | Item id of the setup wand (a weapon-style item so both clicks register: left-click marks the spawn at your position, right-click removes the spawn in front of you). |
 
 ## Database
 

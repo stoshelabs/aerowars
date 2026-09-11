@@ -30,6 +30,15 @@ public final class Arena {
     public int teamSize = 1;
 
     /**
+     * The arena's default cage, applied to any player who hasn't picked their own cage cosmetic. Same
+     * value scheme as a cage {@link Cosmetic#value}: a cage-prefab reference {@code "prefab:<name>"} (see
+     * {@code CageManager}). Blank = fall back to the {@code default} cage prefab. Precedence when building
+     * a player's cage is: player's cosmetic &gt; this arena default &gt; default cage. Set via
+     * {@code /aerowars arena cage <arena> <cage>}.
+     */
+    public String defaultCage = "";
+
+    /**
      * Draft arenas are hidden from matchmaking even if their map is complete. Toggled via
      * {@code /aerowars arena <name> enable|disable} (and set when an arena's chests are cleared).
      */

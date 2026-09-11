@@ -1,5 +1,7 @@
 package dev.stoshe.aerowars.command;
 
+import dev.stoshe.aerowars.util.Tr;
+
 import com.hypixel.hytale.server.core.command.system.CommandSender;
 import com.hypixel.hytale.server.core.command.system.ParseResult;
 import com.hypixel.hytale.server.core.command.system.arguments.types.SingleArgumentType;
@@ -14,7 +16,7 @@ public class ArenaArgType extends SingleArgumentType<String> {
     private final ArenaManager arenaManager;
 
     public ArenaArgType(@Nonnull ArenaManager arenaManager) {
-        super("arena", "Nome de uma arena existente");
+        super("arena", Tr.t("command.arg.arena"));
         this.arenaManager = arenaManager;
     }
 

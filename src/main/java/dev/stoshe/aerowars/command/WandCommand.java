@@ -19,7 +19,7 @@ public class WandCommand extends AbstractPlayerCommand {
     private final AeroWars plugin;
 
     public WandCommand(@Nonnull AeroWars plugin) {
-        super("wand", "Recuperar a varinha de setup (admin)");
+        super("wand", Tr.t("command.wand"));
         this.plugin = plugin;
     }
 

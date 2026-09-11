@@ -64,17 +64,25 @@ public class PlaceInteractionSystem extends EntityEventSystem<EntityStore, Place
             return;
         }
 
+        // Spectators (dead-player OR hidden admin) can't place ANYTHING. Checked before the match lookup
+        // because an admin spectator has no playerMatch entry. Fire their hotbar-tool action, then swallow.
+        if (matchManager.isAnySpectator(uuid)) {
+            matchManager.trySpectatorItemClick(playerRef, store);
+            event.setCancelled(true);
+            return;
+        }
+
         Match match = matchManager.getPlayerMatch(uuid);
         if (match == null) {
             return;
         }
-        // Spectator hotbar: RIGHT-click with a placeable spec tool (e.g. the bed) fires its action instead
-        // of placing it. The AIR case is handled by PlayerMouseButtonEvent; this is the block path.
-        if (matchManager.trySpectatorItemClick(playerRef, store)) {
+        // Waiting hotbar: RIGHT-click with a placeable kit tool fires its action instead of placing it. The
+        // AIR case is handled by PlayerMouseButtonEvent; this is the block path.
+        if (matchManager.tryWaitingItemClick(playerRef, store)) {
             event.setCancelled(true);
             return;
         }
-        if (!match.state.isRunning() || match.spectators.contains(uuid)) {
+        if (!match.state.isRunning()) {
             event.setCancelled(true);
         }
     }

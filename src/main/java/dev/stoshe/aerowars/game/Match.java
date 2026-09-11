@@ -69,8 +69,16 @@ public final class Match {
     public final Map<UUID, Integer> kills = new ConcurrentHashMap<>();
     /** Names captured on join so kill/leave messages survive disconnect. */
     public final Map<UUID, String> names = new ConcurrentHashMap<>();
-    /** Blocks a cage overwrote, keyed "x,y,z", so opening the cage restores exactly what was there. */
-    public final Map<String, dev.stoshe.aerowars.model.BlockSnapshot> cageBlocks = new ConcurrentHashMap<>();
+    /**
+     * Blocks each cage overwrote, so opening the cage restores exactly what was there. Keyed by the
+     * team's spawn index → (block key "x,y,z" → original block), so an arbitrary-shaped prefab cage at
+     * one spawn is restored precisely and independently of the others.
+     */
+    public final Map<Integer, Map<String, dev.stoshe.aerowars.model.BlockSnapshot>> cageSnapshots =
+            new ConcurrentHashMap<>();
+
+    /** The winning team once the match is ENDING (null on a draw/time-up). Drives the ongoing victory fireworks. */
+    public Team endWinner;
 
     public Match(String id, Arena arena, World world, MapLayout layout) {
         this.id = id;

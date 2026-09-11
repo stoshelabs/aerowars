@@ -27,10 +27,10 @@ public class ArenaEnableCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> arenaArg;
 
     public ArenaEnableCommand(@Nonnull AeroWars plugin) {
-        super("enable", "Habilitar uma arena na rotação (admin)");
+        super("enable", Tr.t("command.arena.enable"));
         this.arenaManager = plugin.getArenaManager();
         this.mapManager = plugin.getMapManager();
-        this.arenaArg = withRequiredArg("arena", "Nome da arena", ArgTypes.STRING)
+        this.arenaArg = withRequiredArg("arena", Tr.t("command.arg.arena"), ArgTypes.STRING)
                 .withSuggestionOverride(new ArenaArgType(arenaManager));
     }
 

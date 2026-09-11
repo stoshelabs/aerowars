@@ -26,9 +26,9 @@ public class MapsListCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> arenaArg;
 
     public MapsListCommand(@Nonnull AeroWars plugin) {
-        super("list", "Listar o pool de mapas da arena (admin)");
+        super("list", Tr.t("command.maps.list"));
         this.arenaManager = plugin.getArenaManager();
-        this.arenaArg = withRequiredArg("arena", "Nome da arena", ArgTypes.STRING)
+        this.arenaArg = withRequiredArg("arena", Tr.t("command.arg.arena"), ArgTypes.STRING)
                 .withSuggestionOverride(new ArenaArgType(arenaManager));
     }
 

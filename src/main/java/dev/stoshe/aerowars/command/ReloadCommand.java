@@ -19,7 +19,7 @@ public class ReloadCommand extends AbstractPlayerCommand {
     private final AeroWars plugin;
 
     public ReloadCommand(@Nonnull AeroWars plugin) {
-        super("reload", "Recarregar config, idioma, loot e kits (admin)");
+        super("reload", Tr.t("command.reload"));
         this.plugin = plugin;
     }
 

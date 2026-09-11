@@ -31,7 +31,7 @@ import java.util.List;
 
 /**
  * Full admin panel ({@code /aerowars admin}) with a left sidebar of tabs (Arenas / Loot / Settings),
- * modelled on the Plots menu. Lets an admin delete arenas, clear their chests, edit the loot tables
+ * modelled on the Plots menu. Lets an admin delete arenas, edit the loot tables
  * (add/remove items) and toggle the main config flags — persisted immediately.
  */
 public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageData> {
@@ -41,9 +41,10 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
     private static final int MATCH_ROWS = 8;
     private static final int MATCH_PLAYER_ROWS = 12;
     private static final int KIT_ROWS = 10;
+    private static final int CAGE_ROWS = 10;
 
     private enum Tab {
-        ARENAS, LOOT, MATCHES, KITS, SETTINGS
+        ARENAS, LOOT, MATCHES, KITS, CAGES, SETTINGS
     }
 
     /** Toggle rows on the Settings tab: {config flag key, lang key for the label}. */
@@ -53,6 +54,7 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
             {"fillstart", "admin.set_fillstart"},
             {"friendlyfire", "admin.set_friendlyfire"},
             {"spectate", "admin.set_spectate"},
+            {"randspawns", "admin.set_randspawns"},
             {"saveinv", "admin.set_saveinv"},
             {"fireworks", "admin.set_fireworks"},
             {"scoreboard", "admin.set_scoreboard"},
@@ -73,6 +75,7 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
     private List<LootItem> lootView = new ArrayList<>();
     private List<Match> matchView = new ArrayList<>();
     private List<java.util.UUID> detailPlayers = new ArrayList<>();
+    private List<String> cageView = new ArrayList<>();
 
     private AeroAdminPage(PlayerRef playerRef, World world, AeroWars plugin, Tab tab, String lootTable,
             String detailMatchId, String detailKitId) {
@@ -103,6 +106,7 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
             case "loot" -> Tab.LOOT;
             case "matches" -> Tab.MATCHES;
             case "kits" -> Tab.KITS;
+            case "cages" -> Tab.CAGES;
             case "settings" -> Tab.SETTINGS;
             default -> Tab.ARENAS;
         };
@@ -126,6 +130,7 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
         navButton(cb, eb, "Loot", Tr.t("admin.tab_loot"), this.currentTab == Tab.LOOT, "TabLoot");
         navButton(cb, eb, "Matches", Tr.t("admin.tab_matches"), this.currentTab == Tab.MATCHES, "TabMatches");
         navButton(cb, eb, "Kits", Tr.t("admin.tab_kits"), this.currentTab == Tab.KITS, "TabKits");
+        navButton(cb, eb, "Cages", Tr.t("admin.tab_cages"), this.currentTab == Tab.CAGES, "TabCages");
         navButton(cb, eb, "Settings", Tr.t("admin.tab_settings"), this.currentTab == Tab.SETTINGS, "TabSettings");
         eb.addEventBinding(CustomUIEventBindingType.Activating, "#BtnAdminClose", EventData.of("Action", "Close"), false);
         cb.set("#BtnAdminClose.Text", Tr.t("party.ui_btn_close"));
@@ -134,12 +139,14 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
         cb.set("#PanelLoot.Visible", this.currentTab == Tab.LOOT);
         cb.set("#PanelMatches.Visible", this.currentTab == Tab.MATCHES);
         cb.set("#PanelKits.Visible", this.currentTab == Tab.KITS);
+        cb.set("#PanelCages.Visible", this.currentTab == Tab.CAGES);
         cb.set("#PanelSettings.Visible", this.currentTab == Tab.SETTINGS);
         cb.set("#AdminPanelTitle.Text", switch (this.currentTab) {
             case ARENAS -> Tr.t("admin.tab_arenas");
             case LOOT -> Tr.t("admin.tab_loot");
             case MATCHES -> Tr.t("admin.tab_matches");
             case KITS -> Tr.t("admin.tab_kits");
+            case CAGES -> Tr.t("admin.tab_cages");
             case SETTINGS -> Tr.t("admin.tab_settings");
         });
 
@@ -147,6 +154,7 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
         buildLoot(cb, eb);
         buildMatches(cb, eb);
         buildKits(cb, eb);
+        buildCages(cb, eb);
         buildSettings(cb, eb);
     }
 
@@ -248,25 +256,15 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
                 } else {
                     cb.clear("#KitAdminItemIcon" + i + ".ItemId");
                 }
-                cb.set("#KitAdminItemName" + i + ".Text", it.itemId == null ? "?" : it.itemId.replace('_', ' '));
+                cb.set("#KitAdminItemName" + i + ".TextSpans", KitLabels.itemName(it.itemId));
                 cb.set("#KitAdminItemQty" + i + ".Text", "x" + Math.max(1, it.count));
-                cb.set("#KitAdminItemSlot" + i + ".Text", kitSection(it.container));
+                cb.set("#KitAdminItemSlot" + i + ".Text", KitLabels.section(it.container));
             } else {
                 cb.set("#KitAdminItemRow" + i + ".Visible", false);
             }
         }
     }
 
-    private static String kitSection(int container) {
-        return switch (container) {
-            case 1 -> Tr.t("admin.section_inventory");
-            case 2 -> Tr.t("admin.section_backpack");
-            case 3 -> Tr.t("admin.section_armor");
-            case 4 -> Tr.t("admin.section_utility");
-            case 5 -> Tr.t("admin.section_tools");
-            default -> Tr.t("admin.section_hotbar");
-        };
-    }
 
     private void buildMatches(UICommandBuilder cb, UIEventBuilder eb) {
         Match detail = this.detailMatchId == null ? null : findMatch(this.detailMatchId);
@@ -398,7 +396,6 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
         cb.set("#ArenaEmpty.Visible", this.arenaView.isEmpty());
         cb.set("#ArenaEmpty.Text", Tr.t("admin.arena_empty"));
         String editBtn = Tr.t("admin.btn_edit");
-        String chestsBtn = Tr.t("admin.btn_clear_chests");
         String delBtn = Tr.t("admin.btn_delete");
         for (int i = 0; i < ARENA_ROWS; i++) {
             if (i < this.arenaView.size()) {
@@ -411,17 +408,14 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
                 dev.stoshe.aerowars.model.MapLayout aLayout = this.plugin.getMapManager().layoutFor(a);
                 int aMax = this.plugin.getMapManager().maxPlayersFor(a);
                 int aChests = aLayout == null ? 0 : aLayout.allChests().size();
-                String info = a.name + draftTag + "  {" + mode + ", " + aMax + "p, "
-                        + aChests + " chests}";
+                String info = Tr.t("admin.arena_info", "name", a.name, "draft", draftTag, "mode", mode,
+                        "max", aMax, "chests", aChests);
                 cb.set("#ArenaRow" + i + ".Visible", true);
                 cb.set("#ArenaName" + i + ".Text", info);
                 cb.set("#BtnArenaEdit" + i + ".Text", editBtn);
-                cb.set("#BtnArenaChests" + i + ".Text", chestsBtn);
                 cb.set("#BtnArenaDelete" + i + ".Text", delBtn);
                 eb.addEventBinding(CustomUIEventBindingType.Activating, "#BtnArenaEdit" + i,
                         EventData.of("Action", "ArenaEdit").append("Param", String.valueOf(i)), false);
-                eb.addEventBinding(CustomUIEventBindingType.Activating, "#BtnArenaChests" + i,
-                        EventData.of("Action", "ArenaChests").append("Param", String.valueOf(i)), false);
                 eb.addEventBinding(CustomUIEventBindingType.Activating, "#BtnArenaDelete" + i,
                         EventData.of("Action", "ArenaDelete").append("Param", String.valueOf(i)), false);
             } else {
@@ -432,8 +426,8 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
 
     private void buildLoot(UICommandBuilder cb, UIEventBuilder eb) {
         cb.set("#LootTableLabel.Text", Tr.t("admin.loot_table", "table", this.lootTable));
-        cb.set("#BtnLootNormal.Text", "normal");
-        cb.set("#BtnLootMiddle.Text", "middle");
+        cb.set("#BtnLootNormal.Text", Tr.t("admin.loot_btn_normal"));
+        cb.set("#BtnLootMiddle.Text", Tr.t("admin.loot_btn_middle"));
         eb.addEventBinding(CustomUIEventBindingType.Activating, "#BtnLootNormal",
                 EventData.of("Action", "LootTable").append("Param", "normal"), false);
         eb.addEventBinding(CustomUIEventBindingType.Activating, "#BtnLootMiddle",
@@ -477,6 +471,38 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
         }
     }
 
+    private void buildCages(UICommandBuilder cb, UIEventBuilder eb) {
+        this.cageView = this.plugin.getCageManager().names();
+        cb.set("#CageCount.Text", Tr.t("admin.cage_count", "n", this.cageView.size()));
+        cb.set("#CageEmpty.Visible", this.cageView.isEmpty());
+        cb.set("#CageEmpty.Text", Tr.t("admin.cage_empty"));
+        cb.set("#CageHint.Text", Tr.t("admin.cage_hint"));
+        // Preview now lives in its own page (CagePreviewPage) — the inline stop button is obsolete.
+        cb.set("#BtnCagePreviewStop.Visible", false);
+        String previewBtn = Tr.t("admin.cage_btn_preview");
+        String delBtn = Tr.t("admin.btn_delete");
+        for (int i = 0; i < CAGE_ROWS; i++) {
+            if (i < this.cageView.size()) {
+                cb.set("#CageRow" + i + ".Visible", true);
+                cb.set("#CageName" + i + ".Text", this.cageView.get(i));
+                cb.set("#BtnCagePreview" + i + ".Text", previewBtn);
+                cb.set("#BtnCageDelete" + i + ".Text", delBtn);
+                eb.addEventBinding(CustomUIEventBindingType.Activating, "#BtnCagePreview" + i,
+                        EventData.of("Action", "CagePreview").append("Param", String.valueOf(i)), false);
+                eb.addEventBinding(CustomUIEventBindingType.Activating, "#BtnCageDelete" + i,
+                        EventData.of("Action", "CageDelete").append("Param", String.valueOf(i)), false);
+            } else {
+                cb.set("#CageRow" + i + ".Visible", false);
+            }
+        }
+    }
+
+    /** The cage name at a row index of the last-rendered cage list, or null if out of range. */
+    private String cageAt(String param) {
+        int i = parseInt(param);
+        return (i >= 0 && i < this.cageView.size()) ? this.cageView.get(i) : null;
+    }
+
     // =============================================================== event handling
 
     @Override
@@ -489,12 +515,50 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
         String action = safe(data.action).trim();
         World world = resolveWorld(player);
         switch (action) {
-            case "Close" -> player.getPageManager().setPage(ref, store, Page.None);
-            case "TabArenas" -> reopen(player, ref, store, Tab.ARENAS);
-            case "TabLoot" -> reopen(player, ref, store, Tab.LOOT);
-            case "TabMatches" -> reopen(player, ref, store, Tab.MATCHES);
-            case "TabKits" -> reopen(player, ref, store, Tab.KITS);
-            case "TabSettings" -> reopen(player, ref, store, Tab.SETTINGS);
+            case "Close" -> {
+                CagePreviewService.clear(this.playerRef);
+                player.getPageManager().setPage(ref, store, Page.None);
+            }
+            case "TabArenas" -> {
+                CagePreviewService.clear(this.playerRef);
+                reopen(player, ref, store, Tab.ARENAS);
+            }
+            case "TabLoot" -> {
+                CagePreviewService.clear(this.playerRef);
+                reopen(player, ref, store, Tab.LOOT);
+            }
+            case "TabMatches" -> {
+                CagePreviewService.clear(this.playerRef);
+                reopen(player, ref, store, Tab.MATCHES);
+            }
+            case "TabKits" -> {
+                CagePreviewService.clear(this.playerRef);
+                reopen(player, ref, store, Tab.KITS);
+            }
+            case "TabCages" -> reopen(player, ref, store, Tab.CAGES);
+            case "TabSettings" -> {
+                CagePreviewService.clear(this.playerRef);
+                reopen(player, ref, store, Tab.SETTINGS);
+            }
+            case "CagePreview" -> {
+                // Open the dedicated 3D preview page (the model renders in its PrefabPreviewComponent).
+                int i = parseInt(safe(data.param));
+                if (i >= 0 && i < this.cageView.size()) {
+                    CagePreviewPage.open(player, ref, store, this.playerRef, world, this.plugin, i);
+                } else {
+                    reopen(player, ref, store, Tab.CAGES);
+                }
+            }
+            case "CageDelete" -> {
+                String name = cageAt(safe(data.param));
+                if (name != null && this.plugin.getCageManager().exists(name)) {
+                    CagePreviewService.clear(this.playerRef);
+                    player.getPageManager().openCustomPage(ref, store, (CustomUIPage)
+                            AeroAdminConfirmPopupPage.forDeleteCage(this.playerRef, world, this.plugin, name));
+                } else {
+                    reopen(player, ref, store, Tab.CAGES);
+                }
+            }
             case "KitDelete" -> {
                 String kitId = safe(data.param);
                 if (!kitId.isEmpty() && this.plugin.getKitManager().hasKit(kitId)) {
@@ -593,18 +657,6 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
                             AeroAdminConfirmPopupPage.forDeleteArena(this.playerRef, world, this.plugin, a.name));
                 }
             }
-            case "ArenaChests" -> {
-                Arena a = arenaAt(data.param);
-                if (a == null) {
-                    reopen(player, ref, store, Tab.ARENAS);
-                } else if (this.plugin.getMatchManager().isArenaInUse(a.name)) {
-                    this.playerRef.sendMessage(ChatUtil.error(Tr.t("setup.arena_in_use", "arena", a.name)));
-                    reopen(player, ref, store, Tab.ARENAS);
-                } else {
-                    player.getPageManager().openCustomPage(ref, store, (CustomUIPage)
-                            AeroAdminConfirmPopupPage.forClearChests(this.playerRef, world, this.plugin, a.name));
-                }
-            }
             case "LootRemove" -> {
                 int idx = parseInt(data.param);
                 if (idx >= 0 && this.plugin.getLootManager().removeItem(this.lootTable, idx)) {
@@ -652,6 +704,7 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
             case "fillstart" -> c.Loot.FillOnStart;
             case "friendlyfire" -> c.Match.FriendlyFire;
             case "spectate" -> c.Match.SpectateOnDeath;
+            case "randspawns" -> c.Match.RandomizeSpawns;
             case "saveinv" -> c.Match.SaveInventory;
             case "fireworks" -> c.Effects.VictoryFireworks;
             case "scoreboard" -> c.Scoreboard.Enabled;
@@ -669,6 +722,7 @@ public class AeroAdminPage extends InteractiveCustomUIPage<AeroAdminPage.PageDat
             case "fillstart" -> c.Loot.FillOnStart = v;
             case "friendlyfire" -> c.Match.FriendlyFire = v;
             case "spectate" -> c.Match.SpectateOnDeath = v;
+            case "randspawns" -> c.Match.RandomizeSpawns = v;
             case "saveinv" -> c.Match.SaveInventory = v;
             case "fireworks" -> c.Effects.VictoryFireworks = v;
             case "scoreboard" -> c.Scoreboard.Enabled = v;

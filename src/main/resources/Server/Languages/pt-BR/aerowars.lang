@@ -3,5 +3,8 @@ items.AeroWars_SpecTracker.description = Clique em qualquer lugar (até no ar) p
 items.AeroWars_SpecLobby.name = Voltar ao Lobby
 items.AeroWars_SpecLobby.description = Clique em qualquer lugar (até no ar) para sair da partida e voltar ao lobby.
 
+items.AeroWars_KitSelector.name = Seletor de Kit
+items.AeroWars_KitSelector.description = Clique em qualquer lugar (até no ar) para abrir o menu de kits e escolher seu loadout.
+
 items.AeroWars_SetupWand.name = Varinha de Setup (AeroWars)
 items.AeroWars_SetupWand.description = Clique-esquerdo num bloco para marcar um spawn. Botão direito perto de um remove.

@@ -1,9 +1,32 @@
 {
-  "Parent": "Tool_Pickaxe_Wood",
+  "Quality": "Epic",
   "TranslationProperties": {
     "Name": "aerowars.items.AeroWars_SetupWand.name",
     "Description": "aerowars.items.AeroWars_SetupWand.description"
   },
   "MaxStack": 1,
-  "DropOnDeath": false
+  "DropOnDeath": false,
+  "Model": "Items/Weapons/Stick/Stick.blockymodel",
+  "Texture": "Items/Halloween_Props/Broomstick_Texture.png",
+  "PlayerAnimationsId": "Stick",
+  "Categories": [
+    "Items.Weapons"
+  ],
+  "Interactions": {
+    "Primary": "Stick_Attack",
+    "Secondary": "Stick_Attack"
+  },
+  "IconProperties": {
+    "Scale": 0.25,
+    "Rotation": [
+      45.0,
+      90.0,
+      0.0
+    ],
+    "Translation": [
+      -37.0,
+      -41.0
+    ]
+  },
+  "Icon": "Icons/ItemsGenerated/Debug_Stick.png"
 }

@@ -28,11 +28,11 @@ public class MapsRemoveCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> mapArg;
 
     public MapsRemoveCommand(@Nonnull AeroWars plugin) {
-        super("remove", "Remover um mapa do pool da arena (admin)");
+        super("remove", Tr.t("command.maps.remove"));
         this.arenaManager = plugin.getArenaManager();
-        this.arenaArg = withRequiredArg("arena", "Nome da arena", ArgTypes.STRING)
+        this.arenaArg = withRequiredArg("arena", Tr.t("command.arg.arena"), ArgTypes.STRING)
                 .withSuggestionOverride(new ArenaArgType(arenaManager));
-        this.mapArg = withRequiredArg("mapa", "Mapa alternativo a remover", ArgTypes.STRING)
+        this.mapArg = withRequiredArg("map", Tr.t("command.arg.map_remove"), ArgTypes.STRING)
                 .withSuggestionOverride(new MapArgType(plugin.getMapManager()));
     }
 

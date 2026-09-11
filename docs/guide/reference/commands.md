@@ -47,7 +47,7 @@ All of the following require `aerowars.admin`.
 | --- | --- |
 | `/aerowars start` | Force-start the match you are in. |
 | `/aerowars forcestop` | Force-end the match you are in. |
-| `/aerowars admin` | Open the admin panel (arenas, loot, matches, kits, settings). |
+| `/aerowars admin` | Open the admin panel (arenas, loot, matches, kits, cages, settings). |
 | `/aerowars reload` | Reload config, language, loot tables, kits, maps and arenas without a restart. |
 | `/aerowars setlobby` | Set the AeroWars lobby to your current position. |
 | `/aerowars savekit <name>` | Save your current inventory as a kit. |
@@ -79,7 +79,18 @@ Builds and edits **maps** (spawns, chests, cages, spectator spawn). See [Maps & 
 | `/aerowars arena list` | List all arenas. |
 | `/aerowars arena enable <arena>` | Enable an arena in rotation. |
 | `/aerowars arena disable <arena>` | Disable an arena. |
-| `/aerowars arena info <arena>` | Show an arena's details. |
+| `/aerowars arena cage <arena> <cage>` | Set the arena's default [cage](/guide/features/cages) prefab (`reset` clears it). |
+| `/aerowars arena info <arena>` | Show an arena's details, including its default [cage](/guide/features/cages). |
+
+### Cages — `/aerowars cage …`
+
+| Command | Description |
+| --- | --- |
+| `/aerowars cage list` | List the [cage](/guide/features/cages) prefabs in the `cages/` folder. |
+| `/aerowars cage face <cage> <north\|east\|south\|west\|off>` | Point the cage's front (which cardinal it faces as captured) and auto-rotate it to face the middle chest; `off` disables auto-facing. Saved to `cosmetics.json`. |
+| `/aerowars cage delete <name>` | Delete a cage prefab (behind a confirmation). |
+
+Cages can also be previewed (floating 3D) and deleted from the **Cages** tab of `/aerowars admin`.
 
 ### Map pool — `/aerowars maps …`
 

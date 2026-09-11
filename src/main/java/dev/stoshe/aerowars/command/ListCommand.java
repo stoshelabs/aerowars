@@ -23,7 +23,7 @@ public class ListCommand extends AbstractPlayerCommand {
     private final MapManager mapManager;
 
     public ListCommand(@Nonnull AeroWars plugin) {
-        super("list", "Listar arenas");
+        super("list", Tr.t("command.list_desc"));
         this.arenaManager = plugin.getArenaManager();
         this.mapManager = plugin.getMapManager();
     }

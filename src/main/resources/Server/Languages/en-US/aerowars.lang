@@ -3,5 +3,8 @@ items.AeroWars_SpecTracker.description = Click anywhere (even in the air) to ope
 items.AeroWars_SpecLobby.name = Return to Lobby
 items.AeroWars_SpecLobby.description = Click anywhere (even in the air) to leave the match and return to the lobby.
 
+items.AeroWars_KitSelector.name = Kit Selector
+items.AeroWars_KitSelector.description = Click anywhere (even in the air) to open the kit menu and pick your loadout.
+
 items.AeroWars_SetupWand.name = AeroWars Setup Wand
 items.AeroWars_SetupWand.description = Left-click a block to mark a spawn point. Right-click near one to remove it.

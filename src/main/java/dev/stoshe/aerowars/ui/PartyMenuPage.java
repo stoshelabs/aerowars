@@ -279,7 +279,7 @@ public class PartyMenuPage extends InteractiveCustomUIPage<PartyMenuPage.PageDat
 
     private static String resolveName(UUID uuid) {
         if (uuid == null) {
-            return "Unknown";
+            return Tr.t("general.unknown_player");
         }
         try {
             PlayerRef ref = Universe.get().getPlayer(uuid);

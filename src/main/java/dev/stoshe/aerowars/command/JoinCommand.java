@@ -27,7 +27,7 @@ public class JoinCommand extends AbstractPlayerCommand {
     private final dev.stoshe.aerowars.manager.QueueManager queueManager;
 
     public JoinCommand(@Nonnull AeroWars plugin) {
-        super("join", "Entrar em uma partida");
+        super("join", Tr.t("command.join_desc"));
         this.matchManager = plugin.getMatchManager();
         this.partyManager = plugin.getPartyManager();
         this.queueManager = plugin.getQueueManager();

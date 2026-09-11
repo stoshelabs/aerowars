@@ -27,9 +27,9 @@ public class QueueCommand extends AbstractPlayerCommand {
     private final OptionalArg<String> modeArg;
 
     public QueueCommand(@Nonnull AeroWars plugin) {
-        super("queue", "Entrar na fila de matchmaking (solo|teams)");
+        super("queue", Tr.t("command.queue"));
         this.queueManager = plugin.getQueueManager();
-        this.modeArg = withOptionalArg("modo", "solo|teams", ArgTypes.STRING);
+        this.modeArg = withOptionalArg("mode", Tr.t("command.arg.mode"), ArgTypes.STRING);
     }
 
     @Override

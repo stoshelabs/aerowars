@@ -1,5 +1,7 @@
 package dev.stoshe.aerowars.command;
 
+import dev.stoshe.aerowars.util.Tr;
+
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
@@ -18,7 +20,7 @@ public class CosmeticsCommand extends AbstractPlayerCommand {
     private final AeroWars plugin;
 
     public CosmeticsCommand(@Nonnull AeroWars plugin) {
-        super("cosmetics", "Loja de cosméticos");
+        super("cosmetics", Tr.t("command.cosmetics"));
         addAliases("cosmetic", "cosmeticos");
         this.plugin = plugin;
     }

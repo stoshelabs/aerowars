@@ -25,9 +25,9 @@ public class ArenaDisableCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> arenaArg;
 
     public ArenaDisableCommand(@Nonnull AeroWars plugin) {
-        super("disable", "Desabilitar uma arena na rotação (admin)");
+        super("disable", Tr.t("command.arena.disable"));
         this.arenaManager = plugin.getArenaManager();
-        this.arenaArg = withRequiredArg("arena", "Nome da arena", ArgTypes.STRING)
+        this.arenaArg = withRequiredArg("arena", Tr.t("command.arg.arena"), ArgTypes.STRING)
                 .withSuggestionOverride(new ArenaArgType(arenaManager));
     }
 

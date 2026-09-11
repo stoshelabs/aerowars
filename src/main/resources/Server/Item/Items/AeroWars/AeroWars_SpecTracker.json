@@ -5,5 +5,12 @@
     "Description": "aerowars.items.AeroWars_SpecTracker.description"
   },
   "MaxStack": 1,
-  "DropOnDeath": false
+  "DropOnDeath": false,
+  "Categories": [
+    "Items.Weapons"
+  ],
+  "Interactions": {
+    "Primary": "Stick_Attack",
+    "Secondary": "Stick_Attack"
+  }
 }

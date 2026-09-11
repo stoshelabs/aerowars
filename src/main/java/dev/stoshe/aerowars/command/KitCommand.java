@@ -25,10 +25,10 @@ public class KitCommand extends AbstractPlayerCommand {
     private final OptionalArg<String> kitArg;
 
     public KitCommand(@Nonnull AeroWars plugin) {
-        super("kit", "Escolher um kit");
+        super("kit", Tr.t("command.kit_desc"));
         this.plugin = plugin;
         this.matchManager = plugin.getMatchManager();
-        this.kitArg = withOptionalArg("kit", "ID do kit (vazio abre o menu)", ArgTypes.STRING);
+        this.kitArg = withOptionalArg("kit", Tr.t("command.arg.kit_optional"), ArgTypes.STRING);
     }
 
     @Override

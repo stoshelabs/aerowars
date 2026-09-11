@@ -20,7 +20,7 @@ public class StartCommand extends AbstractPlayerCommand {
     private final MatchManager matchManager;
 
     public StartCommand(@Nonnull AeroWars plugin) {
-        super("start", "Forçar início da partida (admin)");
+        super("start", Tr.t("command.start_desc"));
         this.matchManager = plugin.getMatchManager();
     }
 

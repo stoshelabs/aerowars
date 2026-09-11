@@ -20,7 +20,7 @@ public class StatsCommand extends AbstractPlayerCommand {
     private final StatsManager statsManager;
 
     public StatsCommand(@Nonnull AeroWars plugin) {
-        super("stats", "Ver suas estatísticas");
+        super("stats", Tr.t("command.stats"));
         this.statsManager = plugin.getStatsManager();
     }
 

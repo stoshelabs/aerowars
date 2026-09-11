@@ -24,9 +24,9 @@ public class WorldCreateCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> nameArg;
 
     public WorldCreateCommand(@Nonnull AeroWars plugin) {
-        super("create", "Criar um mundo void com plataforma de spawn");
+        super("create", Tr.t("command.world.create"));
         this.worldManager = plugin.getWorldManager();
-        this.nameArg = withRequiredArg("nome", "Nome do mundo/template", ArgTypes.STRING);
+        this.nameArg = withRequiredArg("name", Tr.t("command.arg.world_name"), ArgTypes.STRING);
     }
 
     @Override

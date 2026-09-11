@@ -15,7 +15,7 @@
   },
 
   "Setup": {
-    "//SpawnWand": "Ferramenta dada ao admin no setup; left-click num bloco marca spawn, botão direito remove. Deve ser uma ferramenta de quebrar (não arma). Fica travada no inventário até finalizar.",
+    "//SpawnWand": "Item given to the admin during setup: left-click (block OR air) marks the spawn at your position, right-click removes the spawn in front of you. Detection is via the discrete interaction watcher, so use a weapon-style item (the bundled AeroWars_SetupWand maps both clicks to a discrete interaction); a plain block/furniture item won't register the right-click. Locked in the inventory until you finish.",
     "SpawnWand": "AeroWars_SetupWand"
   },
 
@@ -25,23 +25,28 @@
     "MaxDurationSeconds": 900,
     "CountdownSeconds": 15,
     "StartGraceSeconds": 3,
-    "EndCelebrationSeconds": 30,
+    "//EndCelebrationSeconds": "Celebration/finalization time after a match ends, before the room closes. Victory fireworks keep launching for this whole window.",
+    "EndCelebrationSeconds": 15,
     "EmptyMatchDeletionSeconds": 30,
     "//FriendlyFire": "Only relevant for TEAMS arenas.",
     "FriendlyFire": false,
     "AllowSpectators": true,
     "//SpectateOnDeath": "Dead players become spectators instead of being removed.",
     "SpectateOnDeath": true,
-    "//SaveInventory": "Ao entrar na partida: salva inventário + gamemode e limpa; ao sair/finalizar, restaura. Jogadores entram em modo Adventure.",
-    "SaveInventory": true
+    "//SaveInventory": "On joining a match: saves the player's inventory + gamemode and clears them; on leaving/ending, restores them. Players enter in Adventure mode.",
+    "SaveInventory": true,
+    "//RandomizeSpawns": "Randomize which island (spawn point) each player/team starts on. When false, teams fill the islands in order (1, 2, 3, ...); when true, the island each team gets is shuffled per match.",
+    "RandomizeSpawns": true,
+    "//AnnounceWinner": "Tell everyone on the server who isn't in the match who won it and on which arena. The text is 'match.win_announce_solo' / 'match.win_announce_team' in the language files, so it follows General.Language.",
+    "AnnounceWinner": true
   },
 
   "Cages": {
-    "//": "Glass/barrier cages that hold players on their island during the countdown.",
+    "//": "Cages hold players on their island during the countdown. Cages are now PREFABS in the cages/ folder (one .prefab.json each, captured with Hytale's prefab tool). The built-ins are generated on first run; author more and pick per player (cage cosmetics) or per arena (/aerowars arena cage).",
     "Enabled": true,
-    "BlockId": "Glass_Block",
-    "Radius": 1,
-    "Height": 2
+    "//FallImmunitySeconds": "Seconds of fall-damage immunity for everyone from match start (when the cages drop), so a high cage drop can't hurt players on landing. Only fall damage is waived; 0 disables it.",
+    "FallImmunitySeconds": 5,
+    "//Orientation": "Per-cage rotation and face-the-middle live on each cage's entry in cosmetics.json (the 'rotation' degrees + 'faceMiddle' flag), so a cage's whole definition stays in one place."
   },
 
   "Loot": {
@@ -66,14 +71,21 @@
     "Enabled": true,
     "DefaultKit": "warrior",
     "//SelectionDuringCountdown": "Let players open the kit menu while waiting/counting down.",
-    "SelectionDuringCountdown": true
+    "SelectionDuringCountdown": true,
+    "//PersistLastKit": "Remember each player's last-selected kit across matches (they keep it until they pick another). Off = every match starts on DefaultKit until selected.",
+    "PersistLastKit": true,
+    "//WaitingItems": "Give waiting players (in their cage) a locked hotbar: a kit-selector item (opens the kit menu) and a return-to-lobby item. Non-droppable; removed when the match starts.",
+    "WaitingItems": true,
+    "//HotbarItems": "The bundled AeroWars_* items are weapon-style so BOTH left- and right-click reliably open/leave. If you swap these for another item id, use a weapon-category item (Categories: Items.Weapons + Interactions Primary/Secondary) with its own Icon — a plain block/furniture item only registers left-click and may show no hotbar icon.",
+    "SelectorItem": "AeroWars_KitSelector",
+    "SelectorSlot": 0,
+    "LobbyItem": "AeroWars_SpecLobby",
+    "LobbySlot": 8
   },
 
   "Rewards": {
-    "//WinnerCommands": "Run by console on win. {player} = winner name, {arena} = arena.",
-    "WinnerCommands": [
-      "broadcast &6{player} {#ffffff}venceu a partida em &e{arena}&f!"
-    ],
+    "//WinnerCommands": "Extra commands run on a solo win. {player} = winner name, {arena} = arena; supports 'broadcast <message>'. Empty by default — the winner announcement itself is Match.AnnounceWinner, which is translated. Example: [\"broadcast &6{player} won on {arena}!\"]",
+    "WinnerCommands": [],
     "//Economy": "Pays coins on kill/win via an installed economy plugin (overworld economy, EliteEssentials, Ecotale). No-op if none is present.",
     "Economy": {
       "Enabled": false,
@@ -124,6 +136,9 @@
   "//Spectator": "Hypixel-style spectator hotbar given on death: a living-player tracker (opens a teleport modal) and a return-to-lobby item. Slots are 0-8; items are locked in place and removed when leaving.",
   "Spectator": {
     "Enabled": true,
+    "//NativeMode": "Run spectators on Hytale's native spectator mode (0.6+): the engine makes them fly, pass through blocks, take no damage and stay hidden from living players and the player list (spectators still see each other and share the spectator voice channel). Set false for AeroWars' own flight + invulnerability + hiding (no passing through blocks).",
+    "NativeMode": true,
+    "//Items": "See Kits.//HotbarItems: the bundled AeroWars_* items are weapon-style so both clicks work. If you swap these, prefer a weapon-category item with its own Icon. Spectator tools have an extra raw-mouse fallback, so a non-weapon item still works in open air but may not register a block-aimed right-click.",
     "TrackerSlot": 0,
     "TrackerItem": "AeroWars_SpecTracker",
     "LobbySlot": 8,

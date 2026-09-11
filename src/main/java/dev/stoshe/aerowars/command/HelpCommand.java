@@ -18,7 +18,7 @@ import javax.annotation.Nonnull;
 public class HelpCommand extends AbstractPlayerCommand {
 
     public HelpCommand(@Nonnull AeroWars plugin) {
-        super("help", "Mostrar ajuda");
+        super("help", Tr.t("command.help_desc"));
     }
 
     @Override
@@ -31,8 +31,9 @@ public class HelpCommand extends AbstractPlayerCommand {
         playerRef.sendMessage(ChatUtil.plain("{#ffffff}/aerowars list {#aaaaaa}- " + Tr.t("command.list_desc")));
         playerRef.sendMessage(ChatUtil.plain("{#ffffff}/aerowars party {#aaaaaa}- " + Tr.t("command.party_desc")));
         if (PermissionUtil.isAdmin(playerRef.getUuid())) {
-            playerRef.sendMessage(ChatUtil.plain("{#ffaa00}/aerowars start {#aaaaaa}- force-start"));
-            playerRef.sendMessage(ChatUtil.plain("{#ffaa00}/aerowars setup start <arena> <template> {#aaaaaa}- criar arena"));
+            playerRef.sendMessage(ChatUtil.plain("{#ffaa00}/aerowars start {#aaaaaa}- " + Tr.t("command.start_desc")));
+            playerRef.sendMessage(ChatUtil.plain("{#ffaa00}/aerowars setup start <arena> <template> {#aaaaaa}- " + Tr.t("command.setup_start_desc")));
+            playerRef.sendMessage(ChatUtil.plain("{#ffaa00}/aerowars admin {#aaaaaa}- " + Tr.t("command.admin_desc")));
         }
     }
 }

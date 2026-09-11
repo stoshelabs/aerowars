@@ -1,5 +1,7 @@
 package dev.stoshe.aerowars.command;
 
+import dev.stoshe.aerowars.util.Tr;
+
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
@@ -18,7 +20,7 @@ public class LeaveCommand extends AbstractPlayerCommand {
     private final MatchManager matchManager;
 
     public LeaveCommand(@Nonnull AeroWars plugin) {
-        super("leave", "Sair da partida atual");
+        super("leave", Tr.t("command.leave_desc"));
         this.plugin = plugin;
         this.matchManager = plugin.getMatchManager();
     }

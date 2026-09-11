@@ -1,5 +1,7 @@
 package dev.stoshe.aerowars.command;
 
+import dev.stoshe.aerowars.util.Tr;
+
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
@@ -25,9 +27,9 @@ public class TopCommand extends AbstractPlayerCommand {
     }
 
     public TopCommand(@Nonnull AeroWars plugin, @Nonnull String name) {
-        super(name, "Ranking de jogadores");
+        super(name, Tr.t("command.top"));
         this.plugin = plugin;
-        this.metricArg = withOptionalArg("métrica", "kills ou wins", ArgTypes.STRING);
+        this.metricArg = withOptionalArg("metric", Tr.t("command.arg.metric"), ArgTypes.STRING);
     }
 
     @Override

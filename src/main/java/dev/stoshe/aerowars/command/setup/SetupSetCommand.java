@@ -20,7 +20,7 @@ public class SetupSetCommand extends AbstractPlayerCommand {
     private final SetupSessionManager setupManager;
 
     public SetupSetCommand(@Nonnull AeroWars plugin) {
-        super("set", "Definir posição do passo atual");
+        super("set", Tr.t("command.setup.set"));
         this.setupManager = plugin.getSetupSessionManager();
     }
 

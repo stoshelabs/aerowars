@@ -21,7 +21,7 @@ public class AdminCommand extends AbstractPlayerCommand {
     private final AeroWars plugin;
 
     public AdminCommand(@Nonnull AeroWars plugin) {
-        super("admin", "Painel de administração (admin)");
+        super("admin", Tr.t("command.admin_desc"));
         this.plugin = plugin;
     }
 

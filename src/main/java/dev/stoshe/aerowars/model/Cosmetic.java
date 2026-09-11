@@ -28,6 +28,20 @@ public class Cosmetic {
     /** In-game asset id applied when selected (cage block id, or particle-system id). */
     public String value = "";
 
+    /**
+     * CAGE cosmetics only: rotation in degrees (0/90/180/270) applied when the cage is pasted — points a
+     * sideways prefab the right way, or (with {@link #faceMiddle}) calibrates which way this cage's front
+     * faces at 0°. Ignored for non-cage cosmetics.
+     */
+    public int rotation = 0;
+
+    /**
+     * CAGE cosmetics only: when true, the cage is additionally rotated so its FRONT faces the arena centre
+     * (the middle-chests, else the average spawn) — so cages arranged around the island face inward. Uses
+     * {@link #rotation} as the front calibration. Ignored for non-cage cosmetics.
+     */
+    public boolean faceMiddle = false;
+
     public Cosmetic() {
     }
 

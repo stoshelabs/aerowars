@@ -1,0 +1,51 @@
+$C = "../AeroWarsUI.ui";
+$Sounds = "../AeroWarsSounds.ui";
+
+$C.@PageOverlay {}
+
+$C.@Container #CagePreviewRoot {
+  Anchor: (Width: 660, Height: 580);
+
+  #Title {
+    $C.@Title #CagePreviewTitle { @Text = "CAGE PREVIEW"; }
+  }
+
+  #Content {
+    LayoutMode: Top;
+    Padding: (Top: 16, Bottom: 16, Left: 16, Right: 16);
+
+    Label #CagePreviewName {
+      Anchor: (Horizontal: 0, Height: 24, Bottom: 8);
+      Style: (...$C.@DefaultLabelStyle, FontSize: 15, TextColor: #ffffff, RenderBold: true, HorizontalAlignment: Center);
+      Text: "";
+    }
+
+    // The engine's 3D prefab viewer — fed by the BuilderToolPrefabPreview packet (see CagePreviewService).
+    PrefabPreviewComponent #Preview {
+      Anchor: (Horizontal: 0, Height: 390, Top: 4, Bottom: 10);
+      AllowDragYaw: true;
+      AllowDragPitch: true;
+      AllowZoom: true;
+      AllowPan: true;
+      ShowAnchor: false;
+    }
+
+    Group {
+      Anchor: (Horizontal: 0, Height: 34, Bottom: 8); LayoutMode: Center;
+      $C.@SmallSecondaryTextButton #BtnCagePrev { @Anchor = (Width: 64, Vertical: 0); Text: "<"; }
+      Group { Anchor: (Width: 12); }
+      Label #CagePreviewCounter {
+        Anchor: (Width: 90, Vertical: 0);
+        Style: (...$C.@DefaultLabelStyle, FontSize: 13, TextColor: #b8b8b8, HorizontalAlignment: Center, VerticalAlignment: Center);
+        Text: "";
+      }
+      Group { Anchor: (Width: 12); }
+      $C.@SmallSecondaryTextButton #BtnCageNext { @Anchor = (Width: 64, Vertical: 0); Text: ">"; }
+    }
+
+    Group {
+      Anchor: (Horizontal: 0, Height: 40); LayoutMode: Center;
+      $C.@SecondaryTextButton #BtnCagePreviewBack { @Sounds = $Sounds.@ButtonsCancel; @Anchor = (Width: 220, Vertical: 0); Text: "Back"; }
+    }
+  }
+}

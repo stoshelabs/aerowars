@@ -10,6 +10,8 @@ import com.hypixel.hytale.protocol.MouseButtonEvent;
 import com.hypixel.hytale.protocol.MouseButtonState;
 import com.hypixel.hytale.protocol.MouseButtonType;
 import com.hypixel.hytale.server.core.event.events.player.AddPlayerToWorldEvent;
+import com.hypixel.hytale.server.core.event.events.BootEvent;
+import com.hypixel.hytale.server.core.event.events.player.PlayerConnectEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerDisconnectEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerMouseButtonEvent;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
@@ -63,6 +65,7 @@ public class AeroWars extends JavaPlugin {
     private WorldManager worldManager;
     private ArenaManager arenaManager;
     private MapManager mapManager;
+    private dev.stoshe.aerowars.manager.CageManager cageManager;
     private dev.stoshe.aerowars.manager.ChangelogManager changelogManager;
     private dev.stoshe.aerowars.system.UpdateNotificationSystem updateNotificationSystem;
     private KitManager kitManager;
@@ -75,6 +78,7 @@ public class AeroWars extends JavaPlugin {
     private PartyManager partyManager;
     private dev.stoshe.aerowars.manager.QueueManager queueManager;
     private SetupSessionManager setupSessionManager;
+    private dev.stoshe.aerowars.interaction.InteractionService interactionService;
 
     public AeroWars(@Nonnull JavaPluginInit init) {
         super(init);
@@ -104,14 +108,21 @@ public class AeroWars extends JavaPlugin {
         this.translationManager = new TranslationManager(dataDir, config.General.Language);
 
         this.worldManager = new WorldManager(dataDir, config);
-        this.worldManager.cleanupEphemeralWorlds();
+        // NOTE: leftover ephemeral (match/setup) worlds are NOT deleted here anymore. Deleting them up front
+        // means a player who was mid-match when the server stopped can't load their saved world on reconnect,
+        // so the engine logs "failed to find ... reset to default" before our connect handler can reroute
+        // them. Instead the cleanup is deferred (MatchManager.start) so those worlds still exist when players
+        // reconnect — the connect handler then pulls them into the lobby — and are swept once everyone's in.
         this.mapManager = new MapManager(dataDir);
         this.mapManager.loadMaps();
+        this.cageManager = new dev.stoshe.aerowars.manager.CageManager(dataDir);
+        this.cageManager.loadCages();
         this.arenaManager = new ArenaManager(dataDir, mapManager);
         this.arenaManager.loadArenas();
         this.kitManager = new KitManager(dataDir);
         this.kitManager.loadKits();
         this.kitManager.loadUnlocks();
+        this.kitManager.loadLastKits();
         this.lootManager = new LootManager(dataDir);
         this.lootManager.loadLootTables();
         this.statsManager = new StatsManager(
@@ -164,17 +175,60 @@ public class AeroWars extends JavaPlugin {
         return UpdateChecker.isNewerVersion(getVersion(), latestVersion);
     }
 
-    /** Async GitHub check on startup; logs the result to the terminal (same scheme as Plots). */
+    private volatile boolean booted;
+    private volatile boolean updateChecked;
+    private volatile boolean updateAnnounced;
+
+    /**
+     * Async GitHub check on startup. The result is announced by {@link #maybeAnnounceUpdate()} — deferred
+     * until the server has finished booting ({@link BootEvent}) so the "update available" banner lands at the
+     * very END of the boot log where it's actually visible, not buried mid-startup.
+     */
     private void checkForUpdates() {
         UpdateChecker.checkForUpdates().thenAccept(latest -> {
             this.latestVersion = latest;
-            if (UpdateChecker.isNewerVersion(getVersion(), latest)) {
-                Console.warning("A new version is available: " + latest + " (you have " + getVersion() + ").");
-                Console.warning("Download: " + UpdateChecker.RELEASES_URL);
-            } else if (latest != null) {
-                Console.success("You are running the latest version (" + getVersion() + ").");
-            }
+            this.updateChecked = true;
+            maybeAnnounceUpdate();
         });
+    }
+
+    /** Fired when the server finishes booting; lets the update banner print last (see checkForUpdates). */
+    private void onBoot(BootEvent event) {
+        this.booted = true;
+        // The asset store is loaded by now, so this is when we can tell whether our spectator game mode made it in.
+        if (config != null && config.Spectator.NativeMode) {
+            if (dev.stoshe.aerowars.game.SpectatorMode.isAvailable()) {
+                Console.info("Spectators: using the native spectator mode '"
+                        + dev.stoshe.aerowars.game.SpectatorMode.MODE_ID + "'.");
+            } else {
+                Console.warning("Spectators: native spectator mode '" + dev.stoshe.aerowars.game.SpectatorMode.MODE_ID
+                        + "' not loaded — falling back to AeroWars' own spectator state.");
+            }
+        }
+        maybeAnnounceUpdate();
+    }
+
+    /**
+     * Prints the update result once — and only once BOTH the async check has returned AND the server has
+     * booted, so the banner is the last thing in the startup log. Whichever of the two finishes last triggers
+     * it.
+     */
+    private synchronized void maybeAnnounceUpdate() {
+        if (updateAnnounced || !booted || !updateChecked) {
+            return;
+        }
+        updateAnnounced = true;
+        String latest = this.latestVersion;
+        if (UpdateChecker.isNewerVersion(getVersion(), latest)) {
+            // Gold high-visibility banner (colour 220), same terminal treatment as the boot banner.
+            Console.banner(220,
+                    ">>  AeroWars UPDATE AVAILABLE",
+                    "",
+                    "    You have  v" + getVersion() + "   ->   latest is  v" + latest,
+                    "    Download:  " + UpdateChecker.RELEASES_URL);
+        } else if (latest != null) {
+            Console.success("You are running the latest version (" + getVersion() + ").");
+        }
     }
 
     @Override
@@ -200,6 +254,9 @@ public class AeroWars extends JavaPlugin {
         if (kitManager != null) {
             kitManager.shutdown();
         }
+        if (interactionService != null) {
+            interactionService.shutdown();
+        }
         Console.info("AeroWars disabled.");
         super.shutdown();
     }
@@ -217,8 +274,9 @@ public class AeroWars extends JavaPlugin {
             lootManager.loadLootTables();
             kitManager.loadKits();
             mapManager.loadMaps();
+            cageManager.loadCages();
             arenaManager.loadArenas();
-            Console.success("AeroWars reloaded (config, language, loot, kits, maps, arenas).");
+            Console.success("AeroWars reloaded (config, language, loot, kits, maps, cages, arenas).");
             return true;
         } catch (Exception e) {
             Console.error("Reload failed: " + e.getMessage());
@@ -329,6 +387,7 @@ public class AeroWars extends JavaPlugin {
         registry.registerSystem(new BreakInteractionSystem(matchManager, setupSessionManager));
         registry.registerSystem(new PlaceInteractionSystem(matchManager, setupSessionManager));
         registry.registerSystem(new UseInteractionSystem(matchManager, setupSessionManager));
+        registry.registerSystem(new dev.stoshe.aerowars.system.PickupControlSystem(matchManager));
         registry.registerSystem(new dev.stoshe.aerowars.system.ProjectileTrailSystem(matchManager));
         this.updateNotificationSystem = new dev.stoshe.aerowars.system.UpdateNotificationSystem(this);
         registry.registerSystem(this.updateNotificationSystem);
@@ -341,6 +400,26 @@ public class AeroWars extends JavaPlugin {
     }
 
     private void registerListeners() {
+        // Native interaction events (our port of PlayerInteractLib). A temporary debug listener logs the
+        // held item + interaction type so we can confirm on the server that events fire before hotbar tools
+        // (kit/spectator) and the wand are routed through it.
+        this.interactionService = new dev.stoshe.aerowars.interaction.InteractionService();
+        this.interactionService.register();
+        this.interactionService.addListener(this::onInteractionDebug);
+        // Route the waiting-phase hotbar tools (kit selector / return-to-lobby) through the native events.
+        this.interactionService.addListener(matchManager::onInteraction);
+
+        try {
+            getEventRegistry().register(PlayerConnectEvent.class, this::onPlayerConnect);
+        } catch (Exception e) {
+            Console.warning("Failed to register connect listener: " + e.getMessage());
+        }
+        try {
+            // Boot-complete signal — used to defer the "update available" banner to the end of the boot log.
+            getEventRegistry().register(BootEvent.class, this::onBoot);
+        } catch (Exception e) {
+            Console.warning("Failed to register boot listener: " + e.getMessage());
+        }
         try {
             getEventRegistry().register(PlayerDisconnectEvent.class, this::onPlayerDisconnect);
         } catch (Exception e) {
@@ -351,6 +430,16 @@ public class AeroWars extends JavaPlugin {
         } catch (Exception e) {
             Console.warning("Failed to register mouse listener: " + e.getMessage());
         }
+        try {
+            // Keyed by world, so global: every player finishing a load into any world. Game modes persist with
+            // the player, so a spectator who disconnected mid-match logs back in still in our spectator mode.
+            getEventRegistry().registerGlobal(
+                    com.hypixel.hytale.server.core.event.events.player.PlayerReadyEvent.class,
+                    event -> dev.stoshe.aerowars.game.SpectatorMode.releaseIfStale(event.getPlayerRef(),
+                            matchManager::isAnySpectator));
+        } catch (Exception e) {
+            Console.warning("Failed to register ready listener: " + e.getMessage());
+        }
     }
 
     /**
@@ -360,6 +449,25 @@ public class AeroWars extends JavaPlugin {
      * release) to run the action once per click.
      */
     private long lastMouseDebugMs;
+    private long lastInteractDebugMs;
+
+    /**
+     * Temporary validation hook for the native interaction watcher: throttled log of the completed
+     * interaction (type + held item). Confirms events fire with a correct itemInHandId before hotbar
+     * tools / the wand are migrated onto {@link dev.stoshe.aerowars.interaction.InteractionService}.
+     */
+    private void onInteractionDebug(dev.stoshe.aerowars.interaction.PlayerInteractionEvent event) {
+        long now = System.currentTimeMillis();
+        if (now - lastInteractDebugMs < 1000) {
+            return;
+        }
+        lastInteractDebugMs = now;
+        var block = event.blockPosition();
+        var hit = event.hitLocation();
+        // System.out.println → captured as [SOUT] in the server log file (Console's streams are not).
+        System.out.println("[interact] type=" + event.type() + " item=" + event.itemInHandId()
+                + " block=" + block + " hit=" + hit + " entity=" + event.hitEntityId());
+    }
 
     private void onMouseButton(PlayerMouseButtonEvent event) {
         try {
@@ -367,9 +475,9 @@ public class AeroWars extends JavaPlugin {
             // TEMP diagnostic (throttled): confirms the event is delivered to the plugin and shows the raw
             // button/state/target values so we can wire air interactions correctly. Remove once verified.
             long now = System.currentTimeMillis();
-            if (now - lastMouseDebugMs > 1500) {
+            if (now - lastMouseDebugMs > 800) {
                 lastMouseDebugMs = now;
-                Console.info("[mousedbg] fired: btn=" + (button == null ? "?" : button.mouseButtonType)
+                System.out.println("[mousedbg] btn=" + (button == null ? "?" : button.mouseButtonType)
                         + " state=" + (button == null ? "?" : button.state)
                         + " hasBlock=" + (event.getTargetBlock() != null));
             }
@@ -380,21 +488,15 @@ public class AeroWars extends JavaPlugin {
             if (pr == null) {
                 return;
             }
-            // Setup: LEFT-clicking the wand in the AIR (no block aimed at) marks the current step at the
-            // admin's own position. Block-aimed wand clicks are handled by BreakInteractionSystem, so we
-            // only take the air case here (targetBlock == null) to avoid double-marking.
-            // Only handle AIR clicks here (targetBlock == null). Block-aimed clicks are handled by the ECS
-            // break/use/place systems, so gating on air avoids firing an action twice for the same click.
-            if (event.getTargetBlock() != null) {
-                return;
-            }
-            if (button.mouseButtonType == MouseButtonType.Left
-                    && setupSessionManager != null && setupSessionManager.hasSession(pr.getUuid())) {
-                setupSessionManager.handleWandAirClick(pr);
-                return;
-            }
+            // (The setup wand is driven by the native interaction watcher now — its item maps both clicks
+            // to a discrete interaction — so it's handled in MatchManager.onInteraction, not here.)
+            // Spectator + waiting-phase hotbar tools, on EVERY click — air OR block-aimed. The raw mouse
+            // event fires regardless of what's aimed at, so this reliably catches clicks even when the held
+            // item is a weapon (whose attack doesn't raise a block use/break event). Each call no-ops unless
+            // the player is in the matching state, and the shared debounce dedupes against the other paths.
             if (matchManager != null) {
                 matchManager.handleSpectatorMouse(pr);
+                matchManager.handleWaitingMouse(pr);
             }
         } catch (Exception e) {
             Console.warning("Mouse interaction handling failed: " + e.getMessage());
@@ -430,29 +532,82 @@ public class AeroWars extends JavaPlugin {
         }
     }
 
+    /**
+     * A player whose saved "current world" is an ephemeral AeroWars match/setup world — because the server
+     * stopped or crashed mid-match — would otherwise log back INTO that world. That world is deleted on boot
+     * ({@code cleanupEphemeralWorlds}), so the engine can't find it and dumps them in the DEFAULT world
+     * ("world has been reset to default"). We catch that here and pull them into the configured lobby.
+     *
+     * <p>By the time this fires the engine may have already reset {@code event.getWorld()} to default, so we
+     * detect the stale world from the player's PERSISTED config data ({@link PlayerConfigData#getWorld()}) as
+     * well, and rewrite that persisted pointer to the lobby so future logins are clean too.
+     */
+    private void onPlayerConnect(PlayerConnectEvent event) {
+        try {
+            if (event == null || worldManager == null || config == null) {
+                return;
+            }
+            com.hypixel.hytale.server.core.universe.world.World world = event.getWorld();
+            String currentName = world == null ? null : world.getName();
+
+            com.hypixel.hytale.server.core.entity.entities.player.data.PlayerConfigData cfg = null;
+            String savedName = null;
+            com.hypixel.hytale.server.core.entity.entities.Player player = event.getPlayer();
+            if (player != null) {
+                cfg = player.getPlayerConfigData();
+                if (cfg != null) {
+                    savedName = cfg.getWorld();
+                }
+            }
+
+            boolean stale = (currentName != null && worldManager.isAeroWarsWorld(currentName))
+                    || (savedName != null && worldManager.isAeroWarsWorld(savedName));
+            if (!stale) {
+                return;
+            }
+
+            com.hypixel.hytale.server.core.universe.world.World lobby =
+                    dev.stoshe.aerowars.util.Teleports.resolveLobby(config.General.LobbyWorld);
+            if (lobby == null) {
+                return;
+            }
+            // Place this connection in the lobby AND rewrite the persisted pointer, so the engine never
+            // tries the dead arena world again on a later login.
+            event.setWorld(lobby);
+            if (cfg != null) {
+                cfg.setWorld(lobby.getName());
+            }
+            PlayerRef pr = event.getPlayerRef();
+            Console.info("Rerouted " + (pr != null ? pr.getUsername() : "a player")
+                    + " out of stale world '" + (savedName != null ? savedName : currentName)
+                    + "' into the lobby on connect.");
+        } catch (Exception e) {
+            Console.warning("Player connect reroute failed: " + e.getMessage());
+        }
+    }
+
     private void onPlayerDisconnect(PlayerDisconnectEvent event) {
         PlayerRef pr = event.getPlayerRef();
         if (pr == null) {
             return;
         }
         UUID uuid = pr.getUuid();
-        if (matchManager != null) {
-            matchManager.handleDisconnect(pr);
-        }
-        if (partyManager != null) {
-            partyManager.handleDisconnect(uuid);
-        }
-        if (queueManager != null) {
-            queueManager.handleDisconnect(uuid);
-        }
-        if (setupSessionManager != null) {
-            setupSessionManager.handleDisconnect(uuid);
-        }
-        if (updateNotificationSystem != null) {
-            updateNotificationSystem.forget(uuid);
-        }
-        if (hudManager != null) {
-            hudManager.remove(uuid);
+        // This runs during the engine's removePlayer dispatch — a throw here logs a SEVERE and aborts the
+        // remaining cleanup, so isolate each handler: one failing must not skip the others or reach the engine.
+        runDisconnectStep("match", () -> { if (matchManager != null) matchManager.handleDisconnect(pr); });
+        runDisconnectStep("party", () -> { if (partyManager != null) partyManager.handleDisconnect(uuid); });
+        runDisconnectStep("queue", () -> { if (queueManager != null) queueManager.handleDisconnect(uuid); });
+        runDisconnectStep("setup", () -> { if (setupSessionManager != null) setupSessionManager.handleDisconnect(uuid); });
+        runDisconnectStep("interaction", () -> { if (interactionService != null) interactionService.forget(uuid); });
+        runDisconnectStep("update", () -> { if (updateNotificationSystem != null) updateNotificationSystem.forget(uuid); });
+        runDisconnectStep("hud", () -> { if (hudManager != null) hudManager.remove(uuid); });
+    }
+
+    private void runDisconnectStep(String name, Runnable step) {
+        try {
+            step.run();
+        } catch (Exception e) {
+            Console.warning("Disconnect handler '" + name + "' failed: " + e);
         }
     }
 
@@ -492,6 +647,14 @@ public class AeroWars extends JavaPlugin {
 
     public MapManager getMapManager() {
         return mapManager;
+    }
+
+    public dev.stoshe.aerowars.manager.CageManager getCageManager() {
+        return cageManager;
+    }
+
+    public dev.stoshe.aerowars.interaction.InteractionService getInteractionService() {
+        return interactionService;
     }
 
     public dev.stoshe.aerowars.manager.ChangelogManager getChangelogManager() {

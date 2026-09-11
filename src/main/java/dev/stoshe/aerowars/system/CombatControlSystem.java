@@ -8,6 +8,7 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.EntityEventSystem;
 import com.hypixel.hytale.server.core.modules.entity.damage.Damage;
+import com.hypixel.hytale.server.core.modules.entity.damage.DamageCause;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dev.stoshe.aerowars.game.Match;
@@ -55,6 +56,14 @@ public class CombatControlSystem extends EntityEventSystem<EntityStore, Damage> 
             return;
         }
         if (match.spectators.contains(victimUuid)) {
+            event.setCancelled(true);
+            return;
+        }
+        // Fall-damage grace window after the cages drop: for the first N seconds of the match nobody
+        // takes fall damage, so a high cage drop can't chunk players on landing. All other damage is
+        // unaffected, and normal fall damage resumes once the window passes.
+        if (event.getCause() == DamageCause.FALL
+                && match.secondsElapsed < config.Cages.FallImmunitySeconds) {
             event.setCancelled(true);
             return;
         }

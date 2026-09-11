@@ -1,5 +1,7 @@
 package dev.stoshe.aerowars.command;
 
+import dev.stoshe.aerowars.util.Tr;
+
 import com.hypixel.hytale.server.core.command.system.CommandSender;
 import com.hypixel.hytale.server.core.command.system.ParseResult;
 import com.hypixel.hytale.server.core.command.system.arguments.types.SingleArgumentType;
@@ -12,7 +14,7 @@ public class ChoiceArgType extends SingleArgumentType<String> {
     private final String[] choices;
 
     public ChoiceArgType(@Nonnull String name, @Nonnull String... choices) {
-        super(name, "Um de: " + String.join(", ", choices));
+        super(name, Tr.t("command.arg.choice") + String.join(", ", choices));
         this.choices = choices;
     }
 

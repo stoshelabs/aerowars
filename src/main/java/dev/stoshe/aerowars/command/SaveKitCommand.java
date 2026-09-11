@@ -28,9 +28,9 @@ public class SaveKitCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> nameArg;
 
     public SaveKitCommand(@Nonnull AeroWars plugin) {
-        super("savekit", "Salvar seu inventário como um kit (admin)");
+        super("savekit", Tr.t("command.savekit"));
         this.kitManager = plugin.getKitManager();
-        this.nameArg = withRequiredArg("nome", "Nome do kit", ArgTypes.STRING);
+        this.nameArg = withRequiredArg("name", Tr.t("command.arg.kit_name"), ArgTypes.STRING);
     }
 
     @Override

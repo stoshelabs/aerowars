@@ -27,10 +27,10 @@ public class ArenaInfoCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> arenaArg;
 
     public ArenaInfoCommand(@Nonnull AeroWars plugin) {
-        super("info", "Ver detalhes de uma arena (admin)");
+        super("info", Tr.t("command.arena.info"));
         this.arenaManager = plugin.getArenaManager();
         this.mapManager = plugin.getMapManager();
-        this.arenaArg = withRequiredArg("arena", "Nome da arena", ArgTypes.STRING)
+        this.arenaArg = withRequiredArg("arena", Tr.t("command.arg.arena"), ArgTypes.STRING)
                 .withSuggestionOverride(new ArenaArgType(arenaManager));
     }
 
@@ -57,5 +57,9 @@ public class ArenaInfoCommand extends AbstractPlayerCommand {
                 "mode", arena.mode().name().toLowerCase(),
                 "max", String.valueOf(mapManager.maxPlayersFor(arena)),
                 "maps", String.join(", ", arena.templatePool()))));
+
+        String cage = (arena.defaultCage == null || arena.defaultCage.isBlank())
+                ? Tr.t("arena.cage_default_global") : arena.defaultCage;
+        playerRef.sendMessage(ChatUtil.info(Tr.t("arena.info_cage", "cage", cage)));
     }
 }

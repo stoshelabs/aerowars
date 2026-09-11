@@ -30,10 +30,10 @@ public class SetupStartCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> templateArg;
 
     public SetupStartCommand(@Nonnull AeroWars plugin) {
-        super("start", "Iniciar setup de um mapa");
+        super("start", Tr.t("command.setup_start_desc"));
         this.setupManager = plugin.getSetupSessionManager();
         this.worldManager = plugin.getWorldManager();
-        this.templateArg = withRequiredArg("template", "Template de mundo", ArgTypes.STRING)
+        this.templateArg = withRequiredArg("template", Tr.t("command.arg.template"), ArgTypes.STRING)
                 .withSuggestionOverride(new TemplateArgType(worldManager));
     }
 
@@ -66,7 +66,7 @@ public class SetupStartCommand extends AbstractPlayerCommand {
         List<String> templates = worldManager.listWorldTemplates();
 
         if (!templates.isEmpty()) {
-            playerRef.sendMessage(ChatUtil.info("Templates: " + String.join(", ", templates)));
+            playerRef.sendMessage(ChatUtil.info(Tr.t("world.list", "list", String.join(", ", templates))));
         }
     }
 }

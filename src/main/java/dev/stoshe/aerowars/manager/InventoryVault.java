@@ -156,6 +156,11 @@ public class InventoryVault {
         if (s == null) {
             return;
         }
+        if (pr.getWorldUuid() == null) {
+            // Universe.getWorld backs onto a ConcurrentHashMap; get(null) throws NPE. No world uuid means
+            // the player isn't in a world to restore into anyway.
+            return;
+        }
         World world = Universe.get().getWorld(pr.getWorldUuid());
         if (world == null) {
             return;

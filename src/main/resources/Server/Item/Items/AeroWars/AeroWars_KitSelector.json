@@ -1,0 +1,16 @@
+{
+  "Parent": "Furniture_Tavern_Chest_Small",
+  "TranslationProperties": {
+    "Name": "aerowars.items.AeroWars_KitSelector.name",
+    "Description": "aerowars.items.AeroWars_KitSelector.description"
+  },
+  "MaxStack": 1,
+  "DropOnDeath": false,
+  "Categories": [
+    "Items.Weapons"
+  ],
+  "Interactions": {
+    "Primary": "Stick_Attack",
+    "Secondary": "Stick_Attack"
+  }
+}

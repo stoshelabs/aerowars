@@ -20,7 +20,7 @@ public class StopCommand extends AbstractPlayerCommand {
     private final MatchManager matchManager;
 
     public StopCommand(@Nonnull AeroWars plugin) {
-        super("forcestop", "Forçar o fim da partida atual (admin)");
+        super("forcestop", Tr.t("command.forcestop"));
         this.matchManager = plugin.getMatchManager();
     }
 

@@ -6,10 +6,10 @@ Cosmetics are visual extras players can equip. Open the shop with `/aerowars cos
 
 | Category | What it does |
 | --- | --- |
-| **Cage themes** | Change the block/appearance of your countdown spawn cage. |
-| **Kill effects** | A visual effect played when you eliminate someone. |
-| **Victory shows** | A special celebration effect when you win. |
-| **Trails** | Particle trails that follow your projectiles/movement (fire, rainbow dust, and more). |
+| **Cage themes** | Change the [prefab](/guide/features/cages) of your countdown spawn cage. Each cage has a **Preview** button that opens a rotatable, zoomable 3D model of it (reflecting the cage's configured rotation); Back returns to the shop. |
+| **Kill effects** | A firework burst at the victim when you eliminate someone. |
+| **Victory shows** | Replaces the particle of your victory firework show when you win. |
+| **Trails** | A particle trail that comes off your body as you move (smoke, fireflies, fire, a colour-cycling rainbow dust, and more). |
 
 ## Unlocking
 

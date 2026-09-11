@@ -7,7 +7,7 @@ AeroWars keeps its permission model deliberately small. There are only **two har
 | Node | Default | Grants |
 | --- | --- | --- |
 | `aerowars.play` | **true** | Joining a match (`/aerowars join`) and queueing (`/aerowars queue`). Granted unless explicitly denied. |
-| `aerowars.admin` | **false** | All admin commands (`admin`, `start`, `forcestop`, `setlobby`, `reload`, `changelog`, `savekit`, `wand`, `firework`, and every `setup`, `arena`, `maps`, and `world` subcommand). Also bypasses TaleGuard build restrictions, enables the hidden admin-spectator, and reveals admin entries in `/aerowars help` and update notifications. |
+| `aerowars.admin` | **false** | All admin commands (`admin`, `start`, `forcestop`, `setlobby`, `reload`, `changelog`, `savekit`, `wand`, `firework`, and every `setup`, `arena`, `cage`, `maps`, and `world` subcommand). Also bypasses TaleGuard build restrictions, enables the hidden admin-spectator, and reveals admin entries in `/aerowars help` and update notifications. |
 
 Any command not listed under `aerowars.admin` is usable by every player.
 
@@ -17,10 +17,10 @@ Purchasable and free cosmetics/kits don't need a node. These built-in nodes gate
 
 | Node | Unlocks |
 | --- | --- |
-| `aerowars.cosmetic.cage.vip` | "Vidro Real" VIP glass cage theme. |
-| `aerowars.cosmetic.kill.royal` | "Realeza" kill effect. |
-| `aerowars.cosmetic.victory.grand` | "Grandioso" victory show. |
-| `aerowars.cosmetic.trail.rainbow` | "Arco-Íris" projectile trail. |
+| `aerowars.cosmetic.cage.vip` | "Royal Glass" VIP cage. |
+| `aerowars.cosmetic.kill.royal` | "Royalty" kill effect. |
+| `aerowars.cosmetic.victory.grand` | "Grand" victory show. |
+| `aerowars.cosmetic.trail.rainbow` | "Rainbow" trail. |
 | `aerowars.kit.sniper` | The permission-locked "sniper" example kit. |
 
 ::: tip

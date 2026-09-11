@@ -1,5 +1,7 @@
 package dev.stoshe.aerowars.command;
 
+import dev.stoshe.aerowars.util.Tr;
+
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractCommandCollection;
 import dev.stoshe.aerowars.AeroWars;
 import dev.stoshe.aerowars.command.arena.ArenaCommand;
@@ -14,7 +16,7 @@ import javax.annotation.Nonnull;
 public class AeroWarsCommand extends AbstractCommandCollection {
 
     public AeroWarsCommand(@Nonnull AeroWars plugin) {
-        super("aerowars", "Comandos do AeroWars");
+        super("aerowars", Tr.t("command.aerowars"));
         addSubCommand(new JoinCommand(plugin));
         addSubCommand(new QueueCommand(plugin));
         addSubCommand(new LeaveCommand(plugin));
@@ -38,6 +40,7 @@ public class AeroWarsCommand extends AbstractCommandCollection {
         addSubCommand(new WandCommand(plugin));
         addSubCommand(new WorldCommand(plugin));
         addSubCommand(new MapsCommand(plugin));
+        addSubCommand(new dev.stoshe.aerowars.command.cage.CageCommand(plugin));
         addSubCommand(new ArenaCommand(plugin));
     }
 }

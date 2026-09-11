@@ -53,10 +53,9 @@ public class BreakInteractionSystem extends EntityEventSystem<EntityStore, Break
         if (setupManager.hasSession(uuid)) {
             Vector3i pos = event.getTargetBlock();
             if (setupManager.isHoldingWand(event.getItemInHand())) {
+                // The wand never breaks the block; MARKING is now handled by the interaction watcher
+                // (MatchManager.onInteraction) so it works in open air too. Here we only swallow the break.
                 event.setCancelled(true);
-                if (pos != null) {
-                    setupManager.handleSpawnClick(playerRef, new WorldPos(pos.x, pos.y, pos.z));
-                }
             } else if (pos != null) {
                 // No wand: the block actually breaks (free edit). If it was a recorded chest, drop it from
                 // the session too (with a message + click cue) so the data matches what's in the world.
@@ -65,17 +64,26 @@ public class BreakInteractionSystem extends EntityEventSystem<EntityStore, Break
             return;
         }
 
+        // Spectators (dead-player OR hidden admin) can't break ANYTHING. Checked before the match lookup
+        // because an admin spectator has no playerMatch entry (getPlayerMatch would be null). Fire their
+        // hotbar-tool action if they clicked one, then swallow the break.
+        if (matchManager.isAnySpectator(uuid)) {
+            matchManager.trySpectatorItemClick(playerRef, store);
+            event.setCancelled(true);
+            return;
+        }
+
         Match match = matchManager.getPlayerMatch(uuid);
         if (match == null) {
             return;
         }
-        // Spectator hotbar: LEFT-click a block with a spec tool fires its action (tracker/lobby). The
-        // AIR case is handled by PlayerMouseButtonEvent (AeroWars.onMouseButton); this is the block path.
-        if (matchManager.trySpectatorItemClick(playerRef, store)) {
+        // Waiting hotbar: LEFT-click a block with a kit tool fires its action instead of breaking. The AIR
+        // case is handled by PlayerMouseButtonEvent (AeroWars.onMouseButton); this is the block path.
+        if (matchManager.tryWaitingItemClick(playerRef, store)) {
             event.setCancelled(true);
             return;
         }
-        if (!match.state.isRunning() || match.spectators.contains(uuid)) {
+        if (!match.state.isRunning()) {
             event.setCancelled(true);
             return;
         }

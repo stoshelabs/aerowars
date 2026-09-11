@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import dev.stoshe.aerowars.util.Tr;
 
 /**
  * Owns the cosmetics catalogue ({@code cosmetics.json}, seeded on first run) and each player's
@@ -92,7 +93,44 @@ public class CosmeticsManager {
             seedDefaults();
             saveCatalogue();
         }
+        migrateCageValuesToPrefabs();
         Console.info("Loaded " + catalogue.size() + " cosmetic(s).");
+    }
+
+    /**
+     * Cages moved from a raw block id / {@code "rainbow"} value to a {@code prefab:<name>} reference (all
+     * cages are prefabs now). Rewrites the known built-in cage values in an already-existing
+     * {@code cosmetics.json} so upgrades keep working; leaves unrecognised/custom values untouched (the
+     * cage build falls back to the default prefab for those with a warning). No-op for a fresh seed.
+     */
+    private void migrateCageValuesToPrefabs() {
+        boolean changed = false;
+        for (Cosmetic c : catalogue.values()) {
+            if (c == null || c.categoryEnum() != CosmeticCategory.CAGE || c.value == null) {
+                continue;
+            }
+            if (c.value.regionMatches(true, 0, "prefab:", 0, "prefab:".length())) {
+                continue; // already migrated
+            }
+            String mapped = switch (c.value) {
+                case "Glass_Block" -> "prefab:default";
+                case "Glass_Block_Yellow" -> "prefab:gold";
+                case "Glass_Block_Red" -> "prefab:red";
+                case "Glass_Block_Blue" -> "prefab:blue";
+                case "Glass_Block_Lime" -> "prefab:lime";
+                case "Glass_Block_Magenta" -> "prefab:vip";
+                case "rainbow" -> "prefab:rainbow";
+                default -> null;
+            };
+            if (mapped != null) {
+                c.value = mapped;
+                changed = true;
+            }
+        }
+        if (changed) {
+            saveCatalogue();
+            Console.info("Migrated built-in cage cosmetics to prefab cages.");
+        }
     }
 
     private void loadPlayers() {
@@ -141,47 +179,48 @@ public class CosmeticsManager {
         // Unlock types: "default" = comes with the account (auto-owned); "free" = free but must be CLAIMED
         // ("resgatar"); "purchase" = bought with coins; "permission" = unlocked by a permission node.
 
-        // CAGES — themed glass blocks that already ship in the pack.
-        add(new Cosmetic("cage_glass", "cage", "Vidro Clássico", "A jaula de vidro padrão.", "default", 0, "", "Glass_Block"));
-        add(new Cosmetic("cage_gold", "cage", "Vidro Âmbar", "Jaula de vidro dourado.", "free", 0, "", "Glass_Block_Yellow"));
-        add(new Cosmetic("cage_red", "cage", "Vidro Rubi", "Jaula de vidro vermelho.", "purchase", 200, "", "Glass_Block_Red"));
-        add(new Cosmetic("cage_blue", "cage", "Vidro Safira", "Jaula de vidro azul.", "purchase", 200, "", "Glass_Block_Blue"));
-        add(new Cosmetic("cage_lime", "cage", "Vidro Esmeralda", "Jaula de vidro verde.", "purchase", 250, "", "Glass_Block_Lime"));
-        add(new Cosmetic("cage_vip", "cage", "Vidro Real", "Jaula mágica exclusiva VIP.", "permission", 0,
-                "aerowars.cosmetic.cage.vip", "Glass_Block_Magenta"));
-        // Rainbow cage: each shell block is a random glass colour (special "rainbow" value).
-        add(new Cosmetic("cage_rainbow", "cage", "Vidro Arco-Íris", "Jaula de vidro multicolorido aleatório.",
-                "purchase", 300, "", "rainbow"));
+        // CAGES — every cage is now a prefab ("prefab:<name>") in the cages/ folder; the built-in ones
+        // (default glass, colours, rainbow) are generated on first run (see CageManager). Admins add more
+        // by capturing them with Hytale's prefab tool and dropping the .prefab.json in cages/.
+        add(new Cosmetic("cage_glass", "cage", "Classic Glass", "The default glass cage.", "default", 0, "", "prefab:default"));
+        add(new Cosmetic("cage_gold", "cage", "Amber Glass", "Golden glass cage.", "free", 0, "", "prefab:gold"));
+        add(new Cosmetic("cage_red", "cage", "Ruby Glass", "Red glass cage.", "purchase", 200, "", "prefab:red"));
+        add(new Cosmetic("cage_blue", "cage", "Sapphire Glass", "Blue glass cage.", "purchase", 200, "", "prefab:blue"));
+        add(new Cosmetic("cage_lime", "cage", "Emerald Glass", "Green glass cage.", "purchase", 250, "", "prefab:lime"));
+        add(new Cosmetic("cage_vip", "cage", "Royal Glass", "Exclusive VIP magic cage.", "permission", 0,
+                "aerowars.cosmetic.cage.vip", "prefab:vip"));
+        add(new Cosmetic("cage_rainbow", "cage", "Rainbow Glass", "A random multicolored glass cage.",
+                "purchase", 300, "", "prefab:rainbow"));
 
         // KILL EFFECTS — a firework burst at the victim on an eliminating hit ("none" = disabled).
-        add(new Cosmetic("kill_none", "kill", "Nenhum", "Sem efeito de abate.", "default", 0, "", ""));
-        add(new Cosmetic("kill_spark", "kill", "Faíscas", "Estouro de faíscas ao abater.", "free", 0, "", "Firework_Mix2"));
-        add(new Cosmetic("kill_blast", "kill", "Explosão", "Grande explosão ao abater.", "purchase", 250, "", "Firework_GS"));
-        add(new Cosmetic("kill_royal", "kill", "Realeza", "Efeito de abate exclusivo.", "permission", 0,
+        add(new Cosmetic("kill_none", "kill", "None", "No kill effect.", "default", 0, "", ""));
+        add(new Cosmetic("kill_spark", "kill", "Sparks", "A burst of sparks on a kill.", "free", 0, "", "Firework_Mix2"));
+        add(new Cosmetic("kill_blast", "kill", "Blast", "A big explosion on a kill.", "purchase", 250, "", "Firework_GS"));
+        add(new Cosmetic("kill_royal", "kill", "Royalty", "Exclusive kill effect.", "permission", 0,
                 "aerowars.cosmetic.kill.royal", "Cinematic_Fireworks_Red_XL"));
 
         // VICTORY — overrides the winner's firework show particle ("default" = the config mix).
-        add(new Cosmetic("victory_default", "victory", "Padrão", "O show de fogos padrão.", "default", 0, "", ""));
-        add(new Cosmetic("victory_mix", "victory", "Festival", "Fogos coloridos variados.", "purchase", 300, "", "Firework_Mix3"));
-        add(new Cosmetic("victory_grand", "victory", "Grandioso", "Show de vitória exclusivo.", "permission", 0,
+        add(new Cosmetic("victory_default", "victory", "Default", "The standard firework show.", "default", 0, "", ""));
+        add(new Cosmetic("victory_mix", "victory", "Festival", "Varied colorful fireworks.", "purchase", 300, "", "Firework_Mix3"));
+        add(new Cosmetic("victory_grand", "victory", "Grand", "Exclusive victory show.", "permission", 0,
                 "aerowars.cosmetic.victory.grand", "Cinematic_Fire_Firework"));
 
         // TRAILS — ONLY point-emitting particle systems (EmitOffset ~0) so the trail comes off the body,
         // not a wide area around the player. Weather systems (Snow/Embers/Dust_Sparkles, 8-20 block spread)
         // were removed — those are what looked like a cloud "around" the player. value = "ParticleId" or
         // "ParticleId|rainbow" (rainbow cycles the sent colour on tint-capable systems).
-        add(new Cosmetic("trail_none", "trail", "Nenhum", "Sem rastro.", "default", 0, "", ""));
-        add(new Cosmetic("trail_smoke", "trail", "Fumaça", "Fumaça saindo do corpo.", "default", 0, "", "Smoke_Fluffy_Floor"));
-        add(new Cosmetic("trail_dust", "trail", "Poeira", "A poeira dos seus passos.", "free", 0, "", "Block_Sprint_Dust"));
-        add(new Cosmetic("trail_pink", "trail", "Fumaça Rosa", "Uma fumaça rosada.", "purchase", 150, "", "Cinematic_Pink_Smoke"));
-        add(new Cosmetic("trail_fireflies", "trail", "Vaga-lumes", "Vaga-lumes bem pertinho.", "purchase", 150, "", "Example_Fireflies"));
-        add(new Cosmetic("trail_magic", "trail", "Mágico", "Faíscas mágicas.", "purchase", 200, "", "Magic_Hit"));
-        add(new Cosmetic("trail_fire", "trail", "Fogo", "Chamas ardentes saem de você.", "purchase", 200, "", "Effect_Fire"));
-        add(new Cosmetic("trail_fire_blue", "trail", "Fogo Azul", "Chamas azuis místicas.", "purchase", 250, "", "Fire_Blue"));
-        add(new Cosmetic("trail_orb", "trail", "Orbe", "Um orbe brilhante te segue.", "purchase", 250, "", "Flying_Orb"));
+        add(new Cosmetic("trail_none", "trail", "None", "No trail.", "default", 0, "", ""));
+        add(new Cosmetic("trail_smoke", "trail", "Smoke", "Smoke coming off your body.", "default", 0, "", "Smoke_Fluffy_Floor"));
+        add(new Cosmetic("trail_dust", "trail", "Dust", "The dust of your steps.", "free", 0, "", "Block_Sprint_Dust"));
+        add(new Cosmetic("trail_pink", "trail", "Pink Smoke", "A rosy smoke.", "purchase", 150, "", "Cinematic_Pink_Smoke"));
+        add(new Cosmetic("trail_fireflies", "trail", "Fireflies", "Fireflies right beside you.", "purchase", 150, "", "Example_Fireflies"));
+        add(new Cosmetic("trail_magic", "trail", "Magic", "Magic sparks.", "purchase", 200, "", "Magic_Hit"));
+        add(new Cosmetic("trail_fire", "trail", "Fire", "Burning flames come off you.", "purchase", 200, "", "Effect_Fire"));
+        add(new Cosmetic("trail_fire_blue", "trail", "Blue Fire", "Mystic blue flames.", "purchase", 250, "", "Fire_Blue"));
+        add(new Cosmetic("trail_orb", "trail", "Orb", "A glowing orb follows you.", "purchase", 250, "", "Flying_Orb"));
         // Rainbow = the point-emitting dust (BlendLinear, tint-capable) with a colour that cycles — a
-        // multicoloured version of the Poeira trail, not an area cloud.
-        add(new Cosmetic("trail_rainbow", "trail", "Arco-Íris", "Rastro exclusivo multicolorido.", "permission", 0,
+        // multicoloured version of the Dust trail, not an area cloud.
+        add(new Cosmetic("trail_rainbow", "trail", "Rainbow", "Exclusive multicolored trail.", "permission", 0,
                 "aerowars.cosmetic.trail.rainbow", "Block_Sprint_Dust|rainbow"));
     }
 
@@ -225,6 +264,48 @@ public class CosmeticsManager {
 
     public Cosmetic get(String id) {
         return id == null ? null : catalogue.get(id);
+    }
+
+    /**
+     * The CAGE cosmetic that references {@code cageRef} (a {@code "prefab:<name>"} or bare {@code "<name>"}
+     * reference), matched by normalized cage name — so cage orientation ({@code rotation}/{@code faceMiddle})
+     * can be read wherever a cage is used (a cosmetic pick OR an arena default). Null if no cage cosmetic
+     * points at it.
+     */
+    public Cosmetic cageCosmeticFor(String cageRef) {
+        if (cageRef == null) {
+            return null;
+        }
+        String target = dev.stoshe.aerowars.manager.CageManager.normalize(cageRef);
+        for (Cosmetic c : catalogue.values()) {
+            if (c != null && c.categoryEnum() == CosmeticCategory.CAGE && c.value != null
+                    && dev.stoshe.aerowars.manager.CageManager.normalize(c.value).equals(target)) {
+                return c;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Sets the facing/orientation of the CAGE cosmetic that references {@code cageRef} and persists it to
+     * {@code cosmetics.json}. {@code rotationDegrees} (nullable, normalised to 0/90/180/270) calibrates
+     * which way the cage's front points at 0°; {@code faceMiddle} (nullable) toggles auto-rotating the cage
+     * so its front faces the arena centre (middle-chests). Returns the updated cosmetic, or {@code null}
+     * when no cage cosmetic points at that cage (orientation can only live on a cosmetic entry).
+     */
+    public Cosmetic setCageOrientation(String cageRef, Integer rotationDegrees, Boolean faceMiddle) {
+        Cosmetic c = cageCosmeticFor(cageRef);
+        if (c == null) {
+            return null;
+        }
+        if (rotationDegrees != null) {
+            c.rotation = ((rotationDegrees % 360) + 360) % 360;
+        }
+        if (faceMiddle != null) {
+            c.faceMiddle = faceMiddle;
+        }
+        saveCatalogue();
+        return c;
     }
 
     private PlayerCosmetics of(UUID uuid) {

@@ -43,6 +43,28 @@ public final class Console {
         OUT.println(msg);
     }
 
+    /**
+     * High-visibility boxed banner straight to the terminal (bypassing the log prefix), drawn in a single
+     * 256-colour so notices like "update available" stand out the way the boot banner does. Lines should be
+     * plain text (no embedded ANSI) so the box aligns.
+     */
+    public static void banner(int color256, String... lines) {
+        int width = 0;
+        for (String l : lines) {
+            width = Math.max(width, l == null ? 0 : l.length());
+        }
+        String c = ESC + "38;5;" + color256 + "m";
+        String rule = "═".repeat(width + 2);
+        OUT.println();
+        OUT.println(c + "╔" + rule + "╗");
+        for (String l : lines) {
+            String s = l == null ? "" : l;
+            OUT.println("║ " + s + " ".repeat(width - s.length()) + " ║");
+        }
+        OUT.println("╚" + rule + "╝" + RESET);
+        OUT.println();
+    }
+
     /** Prints a line with each non-space glyph stepped through the rainbow ramp — for the boot banner. */
     public static void rainbow(String msg) {
         StringBuilder sb = new StringBuilder();

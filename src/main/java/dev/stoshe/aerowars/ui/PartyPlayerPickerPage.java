@@ -81,7 +81,7 @@ public class PartyPlayerPickerPage extends InteractiveCustomUIPage<PartyPlayerPi
                 PlayerEntry entry = this.displayed.get(i);
                 boolean isSelf = entry.uuid().equals(selfUuid);
                 commandBuilder.set("#PickerRow" + i + ".Visible", true);
-                commandBuilder.set("#PickerName" + i + ".Text", entry.name() + (isSelf ? "  (you)" : ""));
+                commandBuilder.set("#PickerName" + i + ".Text", entry.name() + (isSelf ? "  " + Tr.t("party.ui_you") : ""));
                 // Own row: no invite button (you can't invite yourself).
                 commandBuilder.set("#PickerAction" + i + ".Visible", !isSelf);
                 commandBuilder.set("#PickerAction" + i + ".Text", inviteLabel);

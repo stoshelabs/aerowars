@@ -23,9 +23,9 @@ public class SetupEditCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> templateArg;
 
     public SetupEditCommand(@Nonnull AeroWars plugin) {
-        super("edit", "Editar um mapa existente");
+        super("edit", Tr.t("command.setup.edit"));
         this.plugin = plugin;
-        this.templateArg = withRequiredArg("template", "Mapa a editar", ArgTypes.STRING)
+        this.templateArg = withRequiredArg("template", Tr.t("command.arg.map_edit"), ArgTypes.STRING)
                 .withSuggestionOverride(new MapArgType(plugin.getMapManager()));
     }
 

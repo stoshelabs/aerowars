@@ -489,6 +489,43 @@ public class SetupSessionManager {
         });
     }
 
+    /**
+     * Right-click of the wand (from the interaction watcher): removes the marked spawn nearest to the
+     * admin's own position — so it works in open air too, where {@link #handleSpawnRemoveAt} needs a point.
+     */
+    public void handleWandRemoveClick(PlayerRef playerRef) {
+        SetupSession session = sessions.get(playerRef.getUuid());
+        if (session == null) {
+            return;
+        }
+        World world = session.setupWorld;
+        UUID uuid = playerRef.getUuid();
+        world.execute(() -> {
+            try {
+                PlayerRef live = Universe.get().getPlayer(uuid);
+                if (live == null) {
+                    return;
+                }
+                Store<EntityStore> store = world.getEntityStore().getStore();
+                Player player = store.getComponent(live.getReference(), Player.getComponentType());
+                if (player == null || !isHoldingWand(player.getInventory().getItemInHand())) {
+                    return;
+                }
+                // The wand click has no hit point, so aim a couple of blocks in FRONT of the admin (along
+                // their look direction) and remove the spawn nearest to THAT — so you delete the one you're
+                // looking at, not just one you're standing on.
+                com.hypixel.hytale.math.vector.Transform t = live.getTransform();
+                dev.stoshe.aerowars.model.WorldPos here = Locations.fromTransform(t);
+                org.joml.Vector3d dir = t.getDirection();
+                double reach = 2.5;
+                dev.stoshe.aerowars.model.WorldPos aim = new dev.stoshe.aerowars.model.WorldPos(
+                        here.x + dir.x * reach, here.y + dir.y * reach, here.z + dir.z * reach);
+                handleSpawnRemoveAt(live, aim);
+            } catch (Exception ignored) {
+            }
+        });
+    }
+
     /** /aerowars setup set — captures the admin's current position for the active step. */
     public void handleSet(PlayerRef playerRef) {
         SetupSession session = sessions.get(playerRef.getUuid());
@@ -603,8 +640,8 @@ public class SetupSessionManager {
                 bestIndex = i;
             }
         }
-        // Only remove when the click is on/adjacent to a marked spawn (radius 2 blocks).
-        if (bestIndex >= 0 && bestDistSq <= 4) {
+        // Only remove when the aim is on/near a marked spawn (radius 3 blocks).
+        if (bestIndex >= 0 && bestDistSq <= 9) {
             session.spawnPoints.remove(bestIndex);
             SpawnMarkers.clear(playerRef);
             playerRef.sendMessage(ChatUtil.success(Tr.t("setup.spawn_removed", "n", session.spawnPoints.size())));
@@ -715,11 +752,12 @@ public class SetupSessionManager {
     }
 
     private void sendConfirmation(PlayerRef playerRef, SetupSession session) {
-        playerRef.sendMessage(ChatUtil.info("Map: " + session.template
-                + " | Spawns: " + session.spawnPoints.size()
-                + " | Normal: " + session.normalChests.size()
-                + " | Middle: " + session.middleChests.size()
-                + " | Spectator: " + (session.spectatorSpawn != null ? "ok" : "-")));
+        playerRef.sendMessage(ChatUtil.info(Tr.t("setup.summary",
+                "map", session.template,
+                "spawns", session.spawnPoints.size(),
+                "normal", session.normalChests.size(),
+                "middle", session.middleChests.size(),
+                "spectator", session.spectatorSpawn != null ? Tr.t("setup.summary_set") : "-")));
         playerRef.sendMessage(ChatUtil.plain(Tr.t("setup.confirmation")));
     }
 

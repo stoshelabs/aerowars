@@ -21,7 +21,7 @@ public class WorldListCommand extends AbstractPlayerCommand {
     private final WorldManager worldManager;
 
     public WorldListCommand(@Nonnull AeroWars plugin) {
-        super("list", "Listar mundos/templates disponíveis");
+        super("list", Tr.t("command.world.list"));
         this.worldManager = plugin.getWorldManager();
     }
 

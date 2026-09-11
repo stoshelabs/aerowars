@@ -1,5 +1,7 @@
 package dev.stoshe.aerowars.command.party;
 
+import dev.stoshe.aerowars.util.Tr;
+
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
@@ -28,11 +30,11 @@ public class PartyCommand extends AbstractPlayerCommand {
     private final OptionalArg<String> targetArg;
 
     public PartyCommand(@Nonnull AeroWars plugin) {
-        super("party", "Grupo — jogar em conjunto (abre o menu)");
+        super("party", Tr.t("command.party_desc"));
         this.plugin = plugin;
         this.partyManager = plugin.getPartyManager();
-        this.actionArg = withOptionalArg("ação", "invite|accept|decline|leave|disband|kick|menu", ArgTypes.STRING);
-        this.targetArg = withOptionalArg("jogador", "alvo (invite/kick)", ArgTypes.STRING);
+        this.actionArg = withOptionalArg("action", Tr.t("command.arg.party_action"), ArgTypes.STRING);
+        this.targetArg = withOptionalArg("player", Tr.t("command.arg.party_target"), ArgTypes.STRING);
     }
 
     @Override

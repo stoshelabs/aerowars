@@ -60,11 +60,17 @@ public class CosmeticsPage extends InteractiveCustomUIPage<CosmeticsPage.PageDat
 
     public static void open(Player player, Ref<EntityStore> ref, Store<EntityStore> store, PlayerRef playerRef,
             World sourceWorld, AeroWars plugin) {
+        open(player, ref, store, playerRef, sourceWorld, plugin, CosmeticCategory.CAGE);
+    }
+
+    /** Opens the shop at a specific tab (used when returning from the cage 3D preview). */
+    public static void open(Player player, Ref<EntityStore> ref, Store<EntityStore> store, PlayerRef playerRef,
+            World sourceWorld, AeroWars plugin, CosmeticCategory tab) {
         if (player == null || playerRef == null || plugin == null) {
             return;
         }
-        player.getPageManager().openCustomPage(ref, store,
-                (CustomUIPage) new CosmeticsPage(playerRef, sourceWorld, plugin, CosmeticCategory.CAGE, Filter.ALL));
+        player.getPageManager().openCustomPage(ref, store, (CustomUIPage)
+                new CosmeticsPage(playerRef, sourceWorld, plugin, tab == null ? CosmeticCategory.CAGE : tab, Filter.ALL));
     }
 
     @Override
@@ -104,6 +110,15 @@ public class CosmeticsPage extends InteractiveCustomUIPage<CosmeticsPage.PageDat
                 cb.set("#CosmRow" + i + ".Visible", true);
                 cb.set("#CosmName" + i + ".Text", ChatUtil.stripColor(cm.displayName(c)));
                 cb.set("#CosmDesc" + i + ".Text", ChatUtil.stripColor(cm.displayDescription(c)));
+
+                // Cages have a 3D model, so cage rows get a "Preview" button (same viewer as the admin panel).
+                boolean cagePreview = this.tab == CosmeticCategory.CAGE;
+                cb.set("#CosmView" + i + ".Visible", cagePreview);
+                if (cagePreview) {
+                    cb.set("#CosmView" + i + ".Text", Tr.t("cosmetics.btn_preview"));
+                    eb.addEventBinding(CustomUIEventBindingType.Activating, "#CosmView" + i,
+                            EventData.of("Action", "Preview").append("Param", c.id), false);
+                }
 
                 boolean selected = cm.isSelected(uuid, c);
                 boolean unlocked = cm.isUnlocked(uuid, c);
@@ -155,6 +170,15 @@ public class CosmeticsPage extends InteractiveCustomUIPage<CosmeticsPage.PageDat
             case "FilterAll" -> setFilter(player, ref, store, Filter.ALL);
             case "FilterOwned" -> setFilter(player, ref, store, Filter.OWNED);
             case "FilterBuy" -> setFilter(player, ref, store, Filter.TOBUY);
+            case "Preview" -> {
+                Cosmetic c = plugin.getCosmeticsManager().get(safe(data.param));
+                if (c != null && c.categoryEnum() == CosmeticCategory.CAGE) {
+                    CagePreviewPage.openForCosmetic(player, ref, store, this.playerRef, resolveWorld(player),
+                            this.plugin, c.value);
+                } else {
+                    reopen(player, ref, store);
+                }
+            }
             case "Select" -> {
                 report(plugin.getCosmeticsManager().select(this.playerRef.getUuid(), safe(data.param)), data.param);
                 reopen(player, ref, store);

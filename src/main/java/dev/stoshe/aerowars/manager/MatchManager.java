@@ -4,11 +4,11 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.math.vector.Transform;
+import com.hypixel.hytale.protocol.FlyMode;
 import com.hypixel.hytale.protocol.MovementStates;
 import com.hypixel.hytale.protocol.SavedMovementStates;
 import com.hypixel.hytale.server.core.entity.entities.player.movement.MovementManager;
 import com.hypixel.hytale.server.core.entity.entities.Player;
-import com.hypixel.hytale.server.core.modules.entity.component.HiddenFromAdventurePlayers;
 import com.hypixel.hytale.server.core.modules.entity.component.Invulnerable;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
@@ -25,6 +25,7 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dev.stoshe.aerowars.AeroWars;
 import dev.stoshe.aerowars.game.Match;
+import dev.stoshe.aerowars.game.SpectatorMode;
 import dev.stoshe.aerowars.game.Team;
 import dev.stoshe.aerowars.model.AeroWarsConfig;
 import dev.stoshe.aerowars.model.Arena;
@@ -99,6 +100,11 @@ public class MatchManager {
             return t;
         });
         scheduler.scheduleAtFixedRate(this::tickAll, 1, 1, TimeUnit.SECONDS);
+        // Deferred cleanup of leftover ephemeral (match/setup) worlds from a previous run: give players who
+        // were mid-match when the server stopped time to reconnect FIRST — they load their stale match world
+        // and the connect handler reroutes them to the lobby (rewriting their saved world), so nobody hits
+        // the engine's "failed to find ... reset to default". By now those worlds are empty, so sweep them.
+        scheduler.schedule(worldManager::cleanupEphemeralWorlds, 90, TimeUnit.SECONDS);
         // Periodic stats flush so a crash/kill (not a clean shutdown) loses at most one interval of
         // kills/deaths instead of everything since boot. save() is a no-op unless something is dirty,
         // and it runs on this same scheduler thread as the record* calls, so there's no data race.
@@ -434,6 +440,20 @@ public class MatchManager {
         if (world == null) {
             return null;
         }
+        // Point the match world's own spawn at the spectator spawn, so the engine's death→respawn
+        // (which we don't fully control) lands dead players AT the spectator area rather than the
+        // world origin — a robust backstop for the death→spectator flow (see eliminate()).
+        WorldPos specSpawn = layout.spectatorSpawn;
+        if (specSpawn != null) {
+            try {
+                WorldPos c = Locations.centerOfBlock(specSpawn);
+                world.getWorldConfig().setSpawnProvider(
+                        new com.hypixel.hytale.server.core.universe.world.spawn.GlobalSpawnProvider(
+                                new com.hypixel.hytale.math.vector.Transform(c.x, c.y, c.z)));
+            } catch (Exception e) {
+                Console.warning("Could not set match-world spawn to the spectator spawn: " + e.getMessage());
+            }
+        }
         plugin.suppressJoinMessagesFor(world.getName());
         Match match = new Match(id, arena, world, layout);
         buildTeams(match);
@@ -447,9 +467,18 @@ public class MatchManager {
     private void buildTeams(Match match) {
         Arena arena = match.arena;
         int teamCount = Math.max(1, match.layout.teamCount(arena.mode(), arena.effectiveTeamSize()));
+        // The physical island (spawn point) each team occupies. Normally teams take the islands in
+        // order (team 0 -> island 1, team 1 -> island 2, ...). With Match.RandomizeSpawns the island
+        // each team gets is shuffled per match, so players don't always start on the first spawns.
+        List<Integer> spawnIndexes = new ArrayList<>(teamCount);
         for (int i = 0; i < teamCount; i++) {
-            int spawnIndex = arena.mode() == GameMode.TEAMS ? i * arena.effectiveTeamSize() : i;
-            match.teams.add(new Team(i, spawnIndex));
+            spawnIndexes.add(arena.mode() == GameMode.TEAMS ? i * arena.effectiveTeamSize() : i);
+        }
+        if (config.Match.RandomizeSpawns) {
+            java.util.Collections.shuffle(spawnIndexes, random);
+        }
+        for (int i = 0; i < teamCount; i++) {
+            match.teams.add(new Team(i, spawnIndexes.get(i)));
         }
     }
 
@@ -497,6 +526,16 @@ public class MatchManager {
         match.names.put(uuid, playerRef.getUsername());
         playerMatch.put(uuid, match.id);
 
+        // Pre-select the player's remembered kit (Kits.PersistLastKit) so the kit menu shows it as chosen
+        // and they start with it unless they pick another. Only when still unlocked; else the default wins.
+        if (config.Kits.Enabled && config.Kits.PersistLastKit && !match.selectedKits.containsKey(uuid)) {
+            String last = kitManager.getLastKit(uuid);
+            Kit lastKit = last == null ? null : kitManager.getKit(last);
+            if (lastKit != null && kitManager.isUnlocked(uuid, lastKit)) {
+                match.selectedKits.put(uuid, last);
+            }
+        }
+
         WorldPos spawn = spawnFor(match, team.spawnIndex);
         if (spawn != null) {
             teleport(playerRef, match.world, Locations.centerOfBlock(spawn));
@@ -505,17 +544,30 @@ public class MatchManager {
             // the now-loaded chunk (the up-front build in createMatch can miss unloaded chunks).
             World matchWorld = match.world;
             WorldPos cageSpawn = spawn;
+            int cageSpawnIndex = team.spawnIndex;
             scheduler.schedule(() -> {
                 if (config.Match.SaveInventory) {
                     inventoryVault.enterMatch(matchWorld, uuid);
                 }
                 if (!match.state.isRunning()) {
-                    // A player's selected cage cosmetic themes their own island cage.
-                    String cageBlock = plugin.getCosmeticsManager()
-                            .selectedValue(uuid, dev.stoshe.aerowars.model.CosmeticCategory.CAGE);
-                    matchWorld.execute(() -> setCage(match, matchWorld, cageSpawn, false,
-                            match.arena.effectiveTeamSize(), cageBlock));
+                    // Which cage this player gets: their own cosmetic wins; else the arena's default;
+                    // else the default cage prefab. See resolveCageValue / buildCage.
+                    String cageValue = resolveCageValue(uuid, match.arena);
+                    matchWorld.execute(() -> buildCage(match, matchWorld, cageSpawn, cageSpawnIndex, cageValue));
+                    // Locked hotbar for the wait: kit-selector + return-to-lobby (removed at match start).
+                    giveWaitingItems(matchWorld, uuid);
                 }
+                // Full health on entry — refill (and sync to the client) the moment they're in the match
+                // world, so nobody spawns into their cage carrying damage from before.
+                matchWorld.execute(() -> {
+                    try {
+                        PlayerRef live = Universe.get().getPlayer(uuid);
+                        if (live != null) {
+                            healToFull(live.getReference(), matchWorld.getEntityStore().getStore());
+                        }
+                    } catch (Exception ignored) {
+                    }
+                });
                 // Attach the HUD/scoreboard only now that the player is actually in the match
                 // world — attaching before the join teleport settles skips the .ui append and
                 // later set-commands crash the client ("#AeroWarsRoot not found").
@@ -842,6 +894,10 @@ public class MatchManager {
         // A disconnecting admin spectator just drops out of the hidden-spectator map (their entity
         // and god-mode state die with the session; we never touched their inventory).
         adminSpectatorMatch.remove(uuid);
+        // Disconnecting from inside an ephemeral match/setup world: rewrite their SAVED world to the lobby
+        // now (config data is persisted on disconnect), so their next login loads the lobby instead of the
+        // arena — which is deleted on boot ("failed to find aerowars_match_...").
+        persistLobbyWorld(pr);
         if (config.Match.SaveInventory) {
             inventoryVault.restoreOnDisconnect(pr);
         }
@@ -850,6 +906,44 @@ public class MatchManager {
             announceLeft(match, uuid);
             eliminate(match, uuid, null, true, false);
         }
+    }
+
+    /**
+     * Persists the LOBBY as this player's saved world ({@link com.hypixel.hytale.server.core.entity.entities.player.data.PlayerConfigData#setWorld})
+     * IF they're currently inside an ephemeral AeroWars match/setup world — so a disconnect or server stop
+     * mid-match doesn't leave the arena as their saved world (which is deleted on boot, giving the engine's
+     * "failed to find ... world has been reset to default"). Marshalled onto the world thread, like
+     * {@code InventoryVault.restoreOnDisconnect}, where the config data is saved from.
+     */
+    private void persistLobbyWorld(PlayerRef pr) {
+        if (pr == null || pr.getWorldUuid() == null) {
+            // A player who aborted login has no world yet; Universe.getWorld backs onto a ConcurrentHashMap,
+            // whose get(null) throws NPE — so never call it with a null world uuid.
+            return;
+        }
+        World world = Universe.get().getWorld(pr.getWorldUuid());
+        if (world == null || plugin.getWorldManager() == null
+                || !plugin.getWorldManager().isAeroWarsWorld(world.getName())) {
+            return;
+        }
+        World lobby = dev.stoshe.aerowars.util.Teleports.resolveLobby(config.General.LobbyWorld);
+        if (lobby == null) {
+            return;
+        }
+        String lobbyName = lobby.getName();
+        Ref<EntityStore> ref = pr.getReference();
+        world.execute(() -> {
+            try {
+                Store<EntityStore> store = world.getEntityStore().getStore();
+                Player player = store.getComponent(ref, Player.getComponentType());
+                if (player != null && player.getPlayerConfigData() != null) {
+                    player.getPlayerConfigData().setWorld(lobbyName);
+                    Console.info("Saved lobby as " + pr.getUsername() + "'s world (was in "
+                            + world.getName() + ") so they don't log back into a dead arena.");
+                }
+            } catch (Exception ignored) {
+            }
+        });
     }
 
     // ---------------------------------------------------------------- countdown/start
@@ -893,16 +987,15 @@ public class MatchManager {
         World world = match.world;
         // Drop EVERY cage so players can leave their island. Force-load each cage's chunk first
         // (only occupied islands are loaded), then clear the shell on the world thread.
-        int ts = match.arena.effectiveTeamSize();
         for (Team team : match.teams) {
             WorldPos spawn = spawnFor(match, team.spawnIndex);
             if (spawn == null) {
                 continue;
             }
             World w = world;
-            WorldPos s = spawn;
+            int spawnIndex = team.spawnIndex;
             long key = ChunkUtil.indexChunkFromBlock(spawn.blockX(), spawn.blockZ());
-            w.getChunkAsync(key).thenRun(() -> w.execute(() -> setCage(match, w, s, true, ts)));
+            w.getChunkAsync(key).thenRun(() -> w.execute(() -> openCage(match, w, spawnIndex)));
         }
         if (config.Loot.FillOnStart) {
             prepareChests(match, true);
@@ -1123,8 +1216,8 @@ public class MatchManager {
                 WorldPos spawn = spawnFor(match, team.spawnIndex);
                 if (spawn != null) {
                     World w = match.world;
-                    WorldPos cs = spawn;
-                    w.execute(() -> setCage(match, w, cs, true, match.arena.effectiveTeamSize()));
+                    int spawnIndex = team.spawnIndex;
+                    w.execute(() -> openCage(match, w, spawnIndex));
                 }
             }
         }
@@ -1154,6 +1247,20 @@ public class MatchManager {
             // Teleport to the spectator spawn with full god-mode (invisible/invulnerable) and GUARANTEED
             // flight on arrival (so they hover at the spawn instead of dropping).
             sendToSpectatorSpawn(match, uuid, pr, spec);
+            // Re-assert the spectator spawn shortly after: on some deaths (notably a FALL/void death) the
+            // engine's own death→respawn sequence fires just after this and drops the player at the world
+            // respawn point instead of our spectator spawn. A delayed re-teleport overrides that. If the
+            // first teleport already stuck, this lands on the same block (no visible effect).
+            if (spec != null) {
+                scheduler.schedule(() -> {
+                    if (match.spectators.contains(uuid)) {
+                        PlayerRef again = Universe.get().getPlayer(uuid);
+                        if (again != null) {
+                            sendToSpectatorSpawn(match, uuid, again, spec);
+                        }
+                    }
+                }, 600, TimeUnit.MILLISECONDS);
+            }
             // Hand out the spectator hotbar (tracker + return-to-lobby), locked in place.
             giveSpectatorItems(match.world, uuid);
             if (config.Spectator.Enabled && pr != null) {
@@ -1198,6 +1305,8 @@ public class MatchManager {
     private void endMatch(Match match, Team winner) {
         match.state = MatchState.ENDING;
         match.countdownRemaining = Math.max(1, config.Match.EndCelebrationSeconds);
+        // Remembered so the celebration fireworks keep launching every tick until the room closes.
+        match.endWinner = winner;
 
         if (winner != null) {
             for (UUID uuid : winner.members()) {
@@ -1216,11 +1325,15 @@ public class MatchManager {
         } else if (match.arena.mode() == GameMode.TEAMS) {
             match.resultText = Tr.t("status.win_team", "team", winner.name);
             broadcast(match, Tr.t("match.win_team", "team", winner.name));
+            announceWinner(match, Tr.t("match.win_announce_team", "team", winner.name,
+                    "arena", match.arena.displayName()));
         } else {
             UUID winnerUuid = winner.members().stream().findFirst().orElse(null);
             String name = winnerUuid != null ? match.nameOf(winnerUuid) : winner.name;
             match.resultText = Tr.t("status.win_solo", "player", name);
             broadcast(match, Tr.t("match.win_solo", "player", name));
+            announceWinner(match, Tr.t("match.win_announce_solo", "player", name,
+                    "arena", match.arena.displayName()));
             runWinnerRewards(match, name);
         }
         // On-screen victory / game-over banner for everyone still in the match.
@@ -1269,7 +1382,19 @@ public class MatchManager {
                     if (pr == null) {
                         continue;
                     }
-                    store.removeComponentIfExists(pr.getReference(), HiddenFromAdventurePlayers.getComponentType());
+                    Ref<EntityStore> ref = pr.getReference();
+                    if (SpectatorMode.isIn(ref, store)) {
+                        // The native mode hides spectators from everyone still playing. Leaving it reveals them for
+                        // the celebration but also drops flight and invulnerability, so re-apply those by hand
+                        // (the per-tick re-assert keeps them flying from here on).
+                        SpectatorMode.exit(ref, store);
+                        if (store.getComponent(ref, Invulnerable.getComponentType()) == null) {
+                            store.addComponent(ref, Invulnerable.getComponentType());
+                        }
+                        grantFlight(pr, ref, store, true);
+                    }
+                    // Match over — reveal the spectators to everyone again (undo per-viewer hiding).
+                    clearSpectatorVisibility(uuid);
                 }
                 for (UUID uuid : winners) {
                     PlayerRef pr = Universe.get().getPlayer(uuid);
@@ -1512,6 +1637,23 @@ public class MatchManager {
         }
     }
 
+    /**
+     * Tells everyone on the server who isn't in this match who won it ({@code Match.AnnounceWinner}). The match's
+     * own players already got the in-match line, so they're skipped.
+     */
+    private void announceWinner(Match match, String message) {
+        if (!config.Match.AnnounceWinner) {
+            return;
+        }
+        java.util.Set<UUID> inMatch = new java.util.HashSet<>(allParticipants(match));
+        var line = ChatUtil.plain(message);
+        for (PlayerRef pr : Universe.get().getPlayers()) {
+            if (pr != null && !inMatch.contains(pr.getUuid())) {
+                pr.sendMessage(line);
+            }
+        }
+    }
+
     private void runWinnerRewards(Match match, String winnerName) {
         if (config.Rewards.WinnerCommands == null) {
             return;
@@ -1630,6 +1772,10 @@ public class MatchManager {
                 Console.error("Tick error in match " + match.id + ": " + e.getMessage());
             }
         }
+        try {
+            reassertSpectatorFlight();
+        } catch (Exception ignored) {
+        }
         if (queueManager != null) {
             try {
                 queueManager.tick();
@@ -1706,6 +1852,11 @@ public class MatchManager {
                 updateHud(match);
             }
             case ENDING -> {
+                // Keep the celebration fireworks going for the WHOLE end window (until the room closes),
+                // however long EndCelebrationSeconds is — not just a single burst at the end.
+                if (match.endWinner != null) {
+                    launchFireworks(match, match.endWinner);
+                }
                 match.countdownRemaining--;
                 if (match.countdownRemaining <= 0) {
                     cleanup(match);
@@ -1848,27 +1999,82 @@ public class MatchManager {
         Teleports.to(playerRef, targetWorld, pos);
     }
 
+    /**
+     * The kit a player starts with, by precedence: the kit they selected for THIS match; else (when
+     * {@code Kits.PersistLastKit}) their last-used kit if it still exists and is unlocked; else the global
+     * {@code Kits.DefaultKit}. A stale/locked remembered kit safely falls through to the default.
+     */
+    private String resolveKit(Match match, UUID uuid) {
+        String selected = match.selectedKits.get(uuid);
+        if (selected != null && kitManager.getKit(selected) != null) {
+            return selected;
+        }
+        if (config.Kits.PersistLastKit) {
+            String last = kitManager.getLastKit(uuid);
+            Kit lastKit = last == null ? null : kitManager.getKit(last);
+            if (lastKit != null && kitManager.isUnlocked(uuid, lastKit)) {
+                return last;
+            }
+        }
+        return config.Kits.DefaultKit;
+    }
+
+    /**
+     * The kit id currently in effect for a player, for display in the kit picker: their pick for THIS match
+     * if any, else (when {@code Kits.PersistLastKit}) their remembered unlocked kit, else {@code DefaultKit}.
+     * Works whether or not the player is currently in a match.
+     */
+    public String selectedKitId(UUID uuid) {
+        Match match = uuid == null ? null : getPlayerMatch(uuid);
+        if (match != null) {
+            return resolveKit(match, uuid);
+        }
+        if (config.Kits.PersistLastKit && uuid != null) {
+            String last = kitManager.getLastKit(uuid);
+            Kit lastKit = last == null ? null : kitManager.getKit(last);
+            if (lastKit != null && kitManager.isUnlocked(uuid, lastKit)) {
+                return last;
+            }
+        }
+        return config.Kits.DefaultKit;
+    }
+
     private void prepareForPlay(PlayerRef playerRef, Match match) {
         Ref<EntityStore> ref = playerRef.getReference();
         World world = match.world;
-        String kitId = config.Kits.Enabled
-                ? match.selectedKits.getOrDefault(playerRef.getUuid(), config.Kits.DefaultKit)
-                : null;
+        String kitId = config.Kits.Enabled ? resolveKit(match, playerRef.getUuid()) : null;
         world.execute(() -> {
             try {
                 Store<EntityStore> store = world.getEntityStore().getStore();
                 Player player = store.getComponent(ref, Player.getComponentType());
-                if (player != null && kitId != null) {
-                    applyKit(player, kitId);
+                if (player != null) {
+                    // Free the locked waiting-item slots first so applyKit's clear() can empty them and the
+                    // kit fills slot 0 cleanly; then hand out the kit.
+                    unlockWaitingSlots(player);
+                    if (kitId != null) {
+                        applyKit(player, kitId);
+                    }
                 }
-                EntityStatMap stats = store.getComponent(ref, EntityStatMap.getComponentType());
-                if (stats != null) {
-                    stats.maximizeStatValue(DefaultEntityStatTypes.getHealth());
-                }
+                healToFull(ref, store);
             } catch (Exception e) {
                 Console.warning("prepareForPlay failed: " + e.getMessage());
             }
         });
+    }
+
+    /**
+     * Sets a player's health back to full and SYNCS it to the client. Uses the {@code Predictable.ALL}
+     * variant of {@code maximizeStatValue} — the plain overload only updated the server value, so the client
+     * kept showing the old (partial) health bar.
+     */
+    private void healToFull(Ref<EntityStore> ref, Store<EntityStore> store) {
+        try {
+            EntityStatMap stats = store.getComponent(ref, EntityStatMap.getComponentType());
+            if (stats != null) {
+                stats.maximizeStatValue(EntityStatMap.Predictable.ALL, DefaultEntityStatTypes.getHealth());
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     private void applyKit(Player player, String kitId) {
@@ -1990,10 +2196,169 @@ public class MatchManager {
         });
     }
 
+    // ------------------------------------------------------------ waiting-phase hotbar
+
+    /**
+     * Gives a waiting player (in their cage, before the match starts) their locked hotbar tools: a
+     * kit-selector item and a return-to-lobby item, both locked in place so they can't be dropped or
+     * moved. Mirrors {@link #giveSpectatorItems}. Cleared when the match starts (see prepareForPlay).
+     */
+    private void giveWaitingItems(World world, UUID uuid) {
+        if (!config.Kits.WaitingItems || world == null || uuid == null) {
+            return;
+        }
+        world.execute(() -> {
+            try {
+                PlayerRef pr = Universe.get().getPlayer(uuid);
+                if (pr == null) {
+                    return;
+                }
+                Store<EntityStore> store = world.getEntityStore().getStore();
+                Player player = store.getComponent(pr.getReference(), Player.getComponentType());
+                if (player == null) {
+                    return;
+                }
+                ItemContainer hotbar = player.getInventory().getHotbar();
+                if (hotbar == null) {
+                    return;
+                }
+                int sSlot = clampSlot(config.Kits.SelectorSlot);
+                int lSlot = clampSlot(config.Kits.LobbySlot);
+                unlockSlot(hotbar, sSlot);
+                unlockSlot(hotbar, lSlot);
+                if (config.Kits.Enabled && config.Kits.SelectorItem != null && !config.Kits.SelectorItem.isBlank()) {
+                    hotbar.setItemStackForSlot((short) sSlot, new ItemStack(config.Kits.SelectorItem, 1));
+                    lockSlot(hotbar, sSlot);
+                }
+                if (config.Kits.LobbyItem != null && !config.Kits.LobbyItem.isBlank() && lSlot != sSlot) {
+                    hotbar.setItemStackForSlot((short) lSlot, new ItemStack(config.Kits.LobbyItem, 1));
+                    lockSlot(hotbar, lSlot);
+                }
+            } catch (Exception e) {
+                Console.warning("giveWaitingItems failed: " + e.getMessage());
+            }
+        });
+    }
+
+    /** Unlocks the waiting-item slots so {@link #applyKit} can clear/rebuild the hotbar at match start. */
+    private void unlockWaitingSlots(Player player) {
+        if (!config.Kits.WaitingItems || player == null) {
+            return;
+        }
+        try {
+            ItemContainer hotbar = player.getInventory().getHotbar();
+            if (hotbar != null) {
+                unlockSlot(hotbar, clampSlot(config.Kits.SelectorSlot));
+                unlockSlot(hotbar, clampSlot(config.Kits.LobbySlot));
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * Routes the WAITING-phase hotbar tools via the native interaction watcher
+     * ({@link dev.stoshe.aerowars.interaction.InteractionService}): the kit-selector item opens the kit
+     * menu, the return-to-lobby item leaves the match. Spectator tools keep their own handler — this only
+     * fires for a living, pre-match player, so the shared lobby item never double-handles.
+     */
+    public void onInteraction(dev.stoshe.aerowars.interaction.PlayerInteractionEvent event) {
+        if (event == null || !event.isClickOrUse()) {
+            return;
+        }
+        String itemId = event.itemInHandId();
+        if (itemId == null || itemId.isBlank()) {
+            return;
+        }
+        UUID uuid = event.player();
+
+        // Setup wand — both clicks come through here now that the item maps Primary AND Secondary to the
+        // discrete Stick_Attack interaction (a plain stick's right-click is a non-discrete block the watcher
+        // can't see). A wand click has no hit point, so we act at the ADMIN's own position: LEFT marks the
+        // current step here (works in open air), RIGHT removes the spawn in front.
+        var setup = plugin.getSetupSessionManager();
+        if (setup != null && setup.hasSession(uuid) && (event.isLeftClick() || event.isRightClick())) {
+            String wand = setup.getSpawnWand();
+            if (wand != null && wand.equals(itemId)) {
+                PlayerRef pr = Universe.get().getPlayer(uuid);
+                if (pr != null) {
+                    if (event.isLeftClick()) {
+                        setup.handleWandAirClick(pr);
+                    } else {
+                        setup.handleWandRemoveClick(pr);
+                    }
+                }
+                return;
+            }
+        }
+
+        // Spectator hotbar tools (tracker / return-to-lobby) via the discrete interaction watcher: the items
+        // are now weapons mapping BOTH clicks to Stick_Attack, so left- OR right-click (block or open air)
+        // reaches us here — the same discrete path the setup wand uses. The shared debounce in
+        // handleSpectatorItem dedupes this against the raw-mouse/ECS fallback paths.
+        if (isSpectator(uuid)
+                && (itemId.equals(config.Spectator.TrackerItem) || itemId.equals(config.Spectator.LobbyItem))) {
+            final String specItem = itemId;
+            PlayerRef pr = Universe.get().getPlayer(uuid);
+            World w = pr == null ? null : Universe.get().getWorld(pr.getWorldUuid());
+            if (w != null) {
+                w.execute(() -> {
+                    try {
+                        PlayerRef live = Universe.get().getPlayer(uuid);
+                        if (live == null) {
+                            return;
+                        }
+                        Store<EntityStore> store = w.getEntityStore().getStore();
+                        Ref<EntityStore> ref = live.getReference();
+                        Player player = store.getComponent(ref, Player.getComponentType());
+                        if (player != null) {
+                            handleSpectatorItem(live, player, ref, store, specItem);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                });
+            }
+            return;
+        }
+
+        // Waiting-phase hotbar tools (kit selector / return-to-lobby) via the discrete watcher. The raw-mouse
+        // and block-ECS fallback paths cover a non-discrete configured item; the shared debounce dedupes.
+        if (itemId.equals(config.Kits.SelectorItem) || itemId.equals(config.Kits.LobbyItem)) {
+            final String waitItem = itemId;
+            PlayerRef pr = Universe.get().getPlayer(uuid);
+            World w = pr == null ? null : Universe.get().getWorld(pr.getWorldUuid());
+            if (w != null) {
+                w.execute(() -> {
+                    try {
+                        PlayerRef live = Universe.get().getPlayer(uuid);
+                        if (live == null) {
+                            return;
+                        }
+                        Store<EntityStore> store = w.getEntityStore().getStore();
+                        Ref<EntityStore> ref = live.getReference();
+                        Player player = store.getComponent(ref, Player.getComponentType());
+                        if (player != null) {
+                            handleWaitingItem(live, player, ref, store, waitItem);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                });
+            }
+        }
+    }
+
     /** True if the player is a (dead-player) spectator of a live match. */
     public boolean isSpectator(UUID uuid) {
         Match match = getPlayerMatch(uuid);
         return match != null && match.spectators.contains(uuid);
+    }
+
+    /**
+     * True for ANY spectator — a dead-player spectator (in a match's spectator set) OR a hidden admin
+     * spectator (who has no {@code playerMatch} entry, so {@link #isSpectator} alone misses them). Used to
+     * block all world interaction (break/use/place/pickup) for anyone spectating.
+     */
+    public boolean isAnySpectator(UUID uuid) {
+        return isSpectator(uuid) || isAdminSpectator(uuid);
     }
 
     /** A living opponent the spectator can teleport to. */
@@ -2036,6 +2401,9 @@ public class MatchManager {
             return;
         }
         teleport(spectator, match.world, new WorldPos(pos.x, pos.y + 2, pos.z));
+        // A teleport can drop flight; re-grant it once the move settles so the spectator keeps hovering.
+        UUID specUuid = spectator.getUuid();
+        scheduler.schedule(() -> applyFlight(match.world, specUuid), 300, TimeUnit.MILLISECONDS);
         spectator.sendMessage(ChatUtil.success(Tr.t("spectator.teleported", "player", match.nameOf(targetUuid))));
     }
 
@@ -2055,10 +2423,14 @@ public class MatchManager {
             return false;
         }
         ItemStack held = player.getInventory().getItemInHand();
+        String id = held == null ? null : held.getItemId();
+        // TEMP diagnostic: shows what a spectator is actually holding when they click, vs the configured
+        // tracker/lobby ids — pinpoints why the spectator hotbar might not fire. Remove once verified.
+        System.out.println("[spec] click held='" + id + "' tracker='" + config.Spectator.TrackerItem
+                + "' lobby='" + config.Spectator.LobbyItem + "'");
         if (held == null || held.isEmpty()) {
             return false;
         }
-        String id = held.getItemId();
         if (id != null && (id.equals(config.Spectator.TrackerItem) || id.equals(config.Spectator.LobbyItem))) {
             handleSpectatorItem(pr, player, ref, store, id);
             return true;
@@ -2066,25 +2438,41 @@ public class MatchManager {
         return false;
     }
 
-    /** Debounce for the raw mouse-click spectator path (Pressed can arrive in quick pairs / double-clicks). */
-    private final Map<UUID, Long> lastSpecMouse = new ConcurrentHashMap<>();
+    private static final long HOTBAR_ACTION_DEBOUNCE_MS = 300L;
+    private final Map<UUID, Long> lastHotbarAction = new ConcurrentHashMap<>();
+
+    /**
+     * Returns true (and records "now") if enough time has passed since this player's last hotbar action.
+     * Several triggers can fire for one physical click — the discrete interaction watcher, the raw
+     * {@code PlayerMouseButtonEvent}, and the block ECS systems — so both the spectator and waiting-phase
+     * handlers gate on this to run the action exactly once (Pressed can also arrive in quick pairs).
+     */
+    private boolean debounceHotbar(UUID uuid) {
+        long now = System.currentTimeMillis();
+        Long last = lastHotbarAction.get(uuid);
+        if (last != null && now - last < HOTBAR_ACTION_DEBOUNCE_MS) {
+            return false;
+        }
+        lastHotbarAction.put(uuid, now);
+        return true;
+    }
 
     /**
      * Spectator hotbar via the raw {@code PlayerMouseButtonEvent} — unlike the block break/use/place events,
      * this fires even when clicking OPEN AIR, so the tracker/lobby tools work no matter where the spectator
-     * aims. Debounced and marshalled onto the world thread. This is now the SOLE trigger for the spec items
-     * (the block-interaction systems no longer route them, to avoid firing twice on a block-aimed click).
+     * aims. Marshalled onto the world thread. One of several triggers (discrete watcher + this + block ECS);
+     * the shared {@link #debounceHotbar} gate makes the action run once per physical click.
      */
     public void handleSpectatorMouse(PlayerRef pr) {
+        // TEMP diagnostic: for anyone in a match, shows the raw mouse path reached us and whether they read as
+        // a spectator — distinguishes "no mouse event" from "not detected as spectator". Remove once verified.
+        if (pr != null && getPlayerMatch(pr.getUuid()) != null) {
+            System.out.println("[spec] mouse path: player=" + pr.getUsername() + " isSpectator="
+                    + isSpectator(pr.getUuid()) + " specEnabled=" + config.Spectator.Enabled);
+        }
         if (pr == null || !config.Spectator.Enabled || !isSpectator(pr.getUuid())) {
             return;
         }
-        long now = System.currentTimeMillis();
-        Long last = lastSpecMouse.get(pr.getUuid());
-        if (last != null && now - last < 300L) {
-            return;
-        }
-        lastSpecMouse.put(pr.getUuid(), now);
         World world = Universe.get().getWorld(pr.getWorldUuid());
         if (world == null) {
             return;
@@ -2106,6 +2494,10 @@ public class MatchManager {
         if (pr == null || itemId == null || !config.Spectator.Enabled || !isSpectator(pr.getUuid())) {
             return;
         }
+        // Run once per physical click even when several triggers (watcher + mouse + ECS) fire together.
+        if (!debounceHotbar(pr.getUuid())) {
+            return;
+        }
         if (itemId.equals(config.Spectator.TrackerItem)) {
             // Always open the modal (it shows an empty-state label when nobody is alive) rather than
             // spamming a chat message — the spectator can still browse/close it.
@@ -2117,10 +2509,174 @@ public class MatchManager {
     }
 
     /**
-     * Puts a dead player into full spectator god-mode: {@link HiddenFromAdventurePlayers} (invisible to
-     * players still fighting in Adventure), {@link Invulnerable} (immune to PvP/fall/void/all damage) and
-     * creative-style flight (via {@link Player#applyMovementStates}). Cleared by {@link #clearSpectatorState}
-     * when they leave the match. All best-effort and off-thread-safe (wrapped in world.execute + try/catch).
+     * Waiting-phase hotbar CLICK handler (mirror of {@link #trySpectatorItemClick} for pre-match players):
+     * fires the kit-selector / return-to-lobby action when a living, pre-match player clicks holding one of
+     * those items. Returns true so the caller cancels the underlying block break/use/place. This is the
+     * FALLBACK for a non-discrete configured item; a discrete (weapon-style) item also reaches the same
+     * action through the interaction watcher, deduped by {@link #debounceHotbar}.
+     */
+    public boolean tryWaitingItemClick(PlayerRef pr, Store<EntityStore> store) {
+        if (pr == null) {
+            return false;
+        }
+        UUID uuid = pr.getUuid();
+        Match match = getPlayerMatch(uuid);
+        if (match == null || match.state.isRunning() || match.spectators.contains(uuid)) {
+            return false;
+        }
+        Ref<EntityStore> ref = pr.getReference();
+        Player player = store.getComponent(ref, Player.getComponentType());
+        if (player == null) {
+            return false;
+        }
+        ItemStack held = player.getInventory().getItemInHand();
+        if (held == null || held.isEmpty()) {
+            return false;
+        }
+        String id = held.getItemId();
+        if (id == null || (!id.equals(config.Kits.SelectorItem) && !id.equals(config.Kits.LobbyItem))) {
+            return false;
+        }
+        handleWaitingItem(pr, player, ref, store, id);
+        return true;
+    }
+
+    /**
+     * Waiting-phase hotbar via the raw {@code PlayerMouseButtonEvent} — fires the kit-selector /
+     * return-to-lobby action on an OPEN-AIR click (block-aimed clicks come through the ECS systems). Mirror
+     * of {@link #handleSpectatorMouse}; the shared {@link #debounceHotbar} gate dedupes against the discrete
+     * watcher path.
+     */
+    public void handleWaitingMouse(PlayerRef pr) {
+        if (pr == null) {
+            return;
+        }
+        UUID uuid = pr.getUuid();
+        Match match = getPlayerMatch(uuid);
+        if (match == null || match.state.isRunning() || match.spectators.contains(uuid)) {
+            return;
+        }
+        World world = Universe.get().getWorld(pr.getWorldUuid());
+        if (world == null) {
+            return;
+        }
+        world.execute(() -> {
+            try {
+                tryWaitingItemClick(pr, world.getEntityStore().getStore());
+            } catch (Exception ignored) {
+            }
+        });
+    }
+
+    /**
+     * Routes a waiting player's hotbar action: the kit-selector item opens the kit menu, the return-to-lobby
+     * item leaves the match. Shared by the discrete interaction watcher and the raw-mouse / block-ECS
+     * fallback paths, gated by {@link #debounceHotbar} so one physical click acts once. No-ops unless the
+     * player is a living, pre-match (non-spectator) member of a match holding the matching item.
+     */
+    public void handleWaitingItem(PlayerRef pr, Player player, Ref<EntityStore> ref, Store<EntityStore> store,
+            String itemId) {
+        if (pr == null || player == null || itemId == null) {
+            return;
+        }
+        UUID uuid = pr.getUuid();
+        Match match = getPlayerMatch(uuid);
+        if (match == null || match.state.isRunning() || match.spectators.contains(uuid)) {
+            return;
+        }
+        boolean selector = itemId.equals(config.Kits.SelectorItem);
+        boolean lobby = itemId.equals(config.Kits.LobbyItem);
+        if (!selector && !lobby) {
+            return;
+        }
+        if (!debounceHotbar(uuid)) {
+            return;
+        }
+        if (lobby) {
+            removePlayer(pr);
+            return;
+        }
+        if (config.Kits.Enabled) {
+            World world = match.world;
+            if (world != null) {
+                dev.stoshe.aerowars.ui.KitSelectPage.open(player, ref, store, pr, world, plugin);
+            }
+        }
+    }
+
+    /**
+     * Hides a spectator from the LIVING players of their match (per-viewer, via each living player's
+     * {@link com.hypixel.hytale.server.core.entity.entities.player.HiddenPlayersManager}) while leaving them
+     * visible to everyone else — so spectators see each other but not to players still fighting. Also makes
+     * the spectator see everyone again (unhiding anyone they'd hidden while alive). Idempotent.
+     */
+    private void applySpectatorVisibility(UUID specUuid) {
+        Match match = specUuid == null ? null : getPlayerMatch(specUuid);
+        if (match == null && specUuid != null) {
+            // Hidden admin spectators have no playerMatch entry — without this they were never hidden at all.
+            String adminMatchId = adminSpectatorMatch.get(specUuid);
+            match = adminMatchId == null ? null : matches.get(adminMatchId);
+        }
+        if (match == null) {
+            return;
+        }
+        try {
+            for (UUID living : match.alive) {
+                PlayerRef lr = Universe.get().getPlayer(living);
+                if (lr != null && lr.getHiddenPlayersManager() != null) {
+                    lr.getHiddenPlayersManager().hidePlayer(specUuid);
+                }
+            }
+            PlayerRef pr = Universe.get().getPlayer(specUuid);
+            if (pr != null && pr.getHiddenPlayersManager() != null) {
+                for (UUID other : allParticipants(match)) {
+                    if (!other.equals(specUuid)) {
+                        pr.getHiddenPlayersManager().showPlayer(other);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Console.warning("applySpectatorVisibility failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Undoes {@link #applySpectatorVisibility}: every match participant can see {@code uuid} again, and
+     * {@code uuid} sees every participant again — called when a spectator leaves / the match ends so no
+     * hidden state leaks into the lobby.
+     */
+    private void clearSpectatorVisibility(UUID uuid) {
+        if (uuid == null) {
+            return;
+        }
+        try {
+            // Unhide this player for EVERYONE online (they're leaving the match / it ended → visible again),
+            // and clear this player's own hidden list. Match-independent, so it's safe whatever order the
+            // leave/teardown runs in.
+            PlayerRef self = Universe.get().getPlayer(uuid);
+            for (PlayerRef other : Universe.get().getPlayers()) {
+                if (other == null || other.getUuid().equals(uuid)) {
+                    continue;
+                }
+                if (other.getHiddenPlayersManager() != null) {
+                    other.getHiddenPlayersManager().showPlayer(uuid);
+                }
+                if (self != null && self.getHiddenPlayersManager() != null) {
+                    self.getHiddenPlayersManager().showPlayer(other.getUuid());
+                }
+            }
+        } catch (Exception e) {
+            Console.warning("clearSpectatorVisibility failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Puts a dead player (or hidden admin) into spectator god-mode. Preferably Hytale's native spectator
+     * ({@link SpectatorMode}, when {@code Spectator.NativeMode} is on): the engine then enforces flight, no-clip,
+     * invulnerability and hiding from living players by itself. Otherwise — or if the mode can't be entered —
+     * the hand-rolled equivalent: hidden from living players only (see {@link #applySpectatorVisibility}),
+     * {@link Invulnerable} and creative-style flight. Cleared by {@link #clearSpectatorState} when they leave
+     * the match. All best-effort and off-thread-safe (wrapped in world.execute + try/catch).
      */
     private void applySpectatorState(World world, UUID uuid) {
         if (world == null || uuid == null) {
@@ -2134,13 +2690,18 @@ public class MatchManager {
                 }
                 Store<EntityStore> store = world.getEntityStore().getStore();
                 Ref<EntityStore> ref = pr.getReference();
+                if (config.Spectator.NativeMode && SpectatorMode.enter(ref, store)) {
+                    return;
+                }
                 if (store.getComponent(ref, Invulnerable.getComponentType()) == null) {
                     store.addComponent(ref, Invulnerable.getComponentType());
                 }
-                if (store.getComponent(ref, HiddenFromAdventurePlayers.getComponentType()) == null) {
-                    store.addComponent(ref, HiddenFromAdventurePlayers.getComponentType());
-                }
-                // Grant REAL flight (canFly on the MovementManager, like Creative) while keeping the
+                // Hide this spectator from LIVING players only (per-viewer, via each viewer's
+                // HiddenPlayersManager) instead of the blanket HiddenFromAdventurePlayers — so spectators
+                // still SEE each other while staying invisible to players still in the fight. Keeps them in
+                // their normal game mode (just flight + invulnerability, no creative tools).
+                applySpectatorVisibility(uuid);
+                // Grant REAL flight (FlyMode.Allowed on the MovementManager, like Creative) while keeping the
                 // player's current game mode — applyMovementStates alone does NOT enable flight in Adventure.
                 grantFlight(pr, ref, store, true);
             } catch (Exception e) {
@@ -2165,7 +2726,7 @@ public class MatchManager {
         scheduler.schedule(() -> applyFlight(match.world, uuid), 350, TimeUnit.MILLISECONDS);
     }
 
-    /** (Re)applies creative-style flight (canFly ability + active flying) to a player, keeping their mode. */
+    /** (Re)applies creative-style flight (fly ability + active flying) to a player, keeping their mode. */
     private void applyFlight(World world, UUID uuid) {
         if (world == null || uuid == null) {
             return;
@@ -2184,22 +2745,25 @@ public class MatchManager {
     }
 
     /**
-     * Grants or revokes REAL flight independent of game mode by flipping {@code MovementSettings.canFly} on
-     * the player's {@link MovementManager} — the exact field the engine sets when switching to Creative —
-     * and the active flying state. {@code Player.applyMovementStates} alone only sends the flag and does NOT
-     * enable flight in Adventure, which is why spectators couldn't actually fly. Revoke restores the
-     * game-mode defaults (Adventure → canFly=false) so flight never leaks back to the lobby.
+     * Grants or revokes REAL flight independent of game mode by setting {@code MovementSettings.fly} to
+     * {@link FlyMode#Allowed} on the player's {@link MovementManager} — the exact field the engine sets when
+     * switching to Creative — and the active flying state. {@code Player.applyMovementStates} alone only sends
+     * the flag and does NOT enable flight in Adventure, which is why spectators couldn't actually fly. Revoke
+     * restores the game-mode defaults (Adventure → Disabled) so flight never leaks back to the lobby.
      */
     private void grantFlight(PlayerRef pr, Ref<EntityStore> ref, Store<EntityStore> store, boolean enable) {
         if (pr == null || ref == null || store == null) {
             return;
         }
+        if (enable && SpectatorMode.isIn(ref, store)) {
+            return; // the native spectator mode owns movement (forced flight, no-clip) — don't fight it
+        }
         try {
             MovementManager mm = store.getComponent(ref, MovementManager.getComponentType());
             if (mm != null) {
                 if (enable) {
-                    mm.getSettings().canFly = true;
-                    mm.getDefaultSettings().canFly = true;
+                    mm.getSettings().fly = FlyMode.Allowed;
+                    mm.getDefaultSettings().fly = FlyMode.Allowed;
                     mm.update(pr.getPacketHandler());
                 } else {
                     mm.resetDefaultsAndUpdate(ref, store);
@@ -2215,6 +2779,63 @@ public class MatchManager {
         }
     }
 
+    /**
+     * Once per match tick, re-asserts spectator state that got lost — the engine's death→respawn, a tracker
+     * teleport, or a state re-sync can clear it, which is why spectators were "losing" flight mid-spectate.
+     * While the match is live, a native spectator who dropped out of the mode is put back in. Otherwise (legacy
+     * mode, or the end celebration, where spectators are deliberately revealed) flight is re-granted only when
+     * it's actually off, so it never spams movement packets or causes a hover flicker.
+     */
+    private void reassertSpectatorFlight() {
+        for (Match match : new ArrayList<>(matches.values())) {
+            if (match.world == null || match.spectators.isEmpty()) {
+                continue;
+            }
+            boolean live = match.state == MatchState.ACTIVE;
+            for (UUID uuid : new ArrayList<>(match.spectators)) {
+                reassertFlightIfLost(match.world, uuid, live);
+            }
+        }
+        for (Map.Entry<UUID, String> e : new ArrayList<>(adminSpectatorMatch.entrySet())) {
+            PlayerRef pr = Universe.get().getPlayer(e.getKey());
+            if (pr != null) {
+                Match match = matches.get(e.getValue());
+                reassertFlightIfLost(Universe.get().getWorld(pr.getWorldUuid()), e.getKey(),
+                        match != null && match.state == MatchState.ACTIVE);
+            }
+        }
+    }
+
+    /**
+     * Re-asserts one spectator's state: back into the native spectator mode if the match is {@code live} and
+     * they fell out of it, else re-grants flight only if their MovementManager currently shows
+     * {@code fly=Disabled}.
+     */
+    private void reassertFlightIfLost(World world, UUID uuid, boolean live) {
+        if (world == null || uuid == null) {
+            return;
+        }
+        PlayerRef pr = Universe.get().getPlayer(uuid);
+        if (pr == null) {
+            return;
+        }
+        Ref<EntityStore> ref = pr.getReference();
+        world.execute(() -> {
+            try {
+                Store<EntityStore> store = world.getEntityStore().getStore();
+                if (SpectatorMode.isIn(ref, store)
+                        || (live && config.Spectator.NativeMode && SpectatorMode.enter(ref, store))) {
+                    return;
+                }
+                MovementManager mm = store.getComponent(ref, MovementManager.getComponentType());
+                if (mm != null && mm.getSettings() != null && mm.getSettings().fly == FlyMode.Disabled) {
+                    grantFlight(pr, ref, store, true);
+                }
+            } catch (Exception ignored) {
+            }
+        });
+    }
+
     /** Removes spectator god-mode (invisible/invulnerable/flight) using the player's current-world ref. */
     private void clearSpectatorState(PlayerRef playerRef) {
         if (playerRef == null || playerRef.getWorldUuid() == null) {
@@ -2228,8 +2849,12 @@ public class MatchManager {
         world.execute(() -> {
             try {
                 Store<EntityStore> store = world.getEntityStore().getStore();
+                // Leave the native spectator mode first: exiting undoes its flight, no-clip, invulnerability and
+                // hiding. The hand-rolled cleanup below is then a no-op for a native spectator.
+                SpectatorMode.exit(ref, store);
                 store.removeComponentIfExists(ref, Invulnerable.getComponentType());
-                store.removeComponentIfExists(ref, HiddenFromAdventurePlayers.getComponentType());
+                // Reveal them to everyone again (undo the per-viewer spectator hiding).
+                clearSpectatorVisibility(playerRef.getUuid());
                 // Revoke flight (restore game-mode defaults) so nothing leaks into the lobby.
                 grantFlight(playerRef, ref, store, false);
                 // Unlock the spectator-item slots so the pre-match inventory can be restored freely.
@@ -2279,82 +2904,216 @@ public class MatchManager {
 
     // ---------------------------------------------------------------- cages
 
-    /** Builds (air=false) or clears (air=true) a hollow cage around a spawn. */
-    private void setCage(Match match, World world, WorldPos spawn, boolean air, int teamSize) {
-        setCage(match, world, spawn, air, teamSize, null);
+    /**
+     * Resolves which cage value to build for a player, by precedence: the player's own selected cage
+     * cosmetic first, then the arena's {@link Arena#defaultCage}, then {@code null} (the build falls
+     * back to the default cage prefab). Blanks are skipped at each level. The value is a cage-prefab
+     * reference — {@code "prefab:<name>"} or a bare {@code "<name>"} (see {@link CageManager}).
+     */
+    private String resolveCageValue(UUID uuid, Arena arena) {
+        String cosmetic = plugin.getCosmeticsManager()
+                .selectedValue(uuid, dev.stoshe.aerowars.model.CosmeticCategory.CAGE);
+        if (cosmetic != null && !cosmetic.isBlank()) {
+            return cosmetic;
+        }
+        if (arena != null && arena.defaultCage != null && !arena.defaultCage.isBlank()) {
+            return arena.defaultCage;
+        }
+        return null;
     }
 
     private static String blockKey(int x, int y, int z) {
         return x + "," + y + "," + z;
     }
 
-    /** Vivid glass colours cycled for the "rainbow" cage cosmetic. */
-    private static final String[] RAINBOW_GLASS = {
-            "Glass_Block_Red", "Glass_Block_Orange", "Glass_Block_Yellow", "Glass_Block_Lime",
-            "Glass_Block_Green", "Glass_Block_Cyan", "Glass_Block_Blue", "Glass_Block_Purple",
-            "Glass_Block_Pink", "Glass_Block_Magenta"
-    };
-
-    private String randomGlassColor() {
-        return RAINBOW_GLASS[random.nextInt(RAINBOW_GLASS.length)];
+    private static int[] parseKey(String key) {
+        int a = key.indexOf(','), b = key.indexOf(',', a + 1);
+        return new int[]{
+                Integer.parseInt(key.substring(0, a)),
+                Integer.parseInt(key.substring(a + 1, b)),
+                Integer.parseInt(key.substring(b + 1))
+        };
     }
 
-    private void setCage(Match match, World world, WorldPos spawn, boolean air, int teamSize, String blockOverride) {
-        if (!config.Cages.Enabled) {
+    /**
+     * Pastes a cage around a spawn using the engine's native prefab placement — the SAME path as the 3D
+     * preview — so block ids, per-block rotations and the anchor are reproduced exactly (the old hand-rolled
+     * paste dropped rotations and mishandled a zero anchor). Every position the cage occupies is snapshotted
+     * under this spawn index first (anchor lands on the spawn block: {@code world = spawn + (local - anchor)})
+     * so {@link #openCage} restores the arena exactly. Optional whole-cage rotation from the cage cosmetic.
+     */
+    private void buildCage(Match match, World world, WorldPos spawn, int spawnIndex, String cageValue) {
+        if (!config.Cages.Enabled || match == null || spawn == null) {
             return;
         }
-        int bx = spawn.blockX();
-        int by = spawn.blockY();
-        int bz = spawn.blockZ();
-        // Grow the cage for coop/team spawns so it comfortably holds every teammate: a team of N
-        // shares a spawn, so a radius of ~N gives an (2N+1)x(2N+1) floor.
-        int r = Math.max(Math.max(1, config.Cages.Radius), Math.max(1, teamSize));
-        int h = Math.max(2, config.Cages.Height);
-        String glass = (blockOverride != null && !blockOverride.isBlank()) ? blockOverride
-                : (config.Cages.BlockId == null || config.Cages.BlockId.isBlank())
-                        ? "Glass_Block" : config.Cages.BlockId;
-        // "rainbow" cage cosmetic: each shell block gets a random glass colour.
-        boolean rainbow = "rainbow".equalsIgnoreCase(glass);
-        for (int x = bx - r; x <= bx + r; x++) {
-            for (int z = bz - r; z <= bz + r; z++) {
-                for (int y = by - 1; y <= by + h; y++) {
-                    boolean shell = x == bx - r || x == bx + r || z == bz - r || z == bz + r
-                            || y == by - 1 || y == by + h;
-                    if (!shell) {
-                        continue;
+        dev.stoshe.aerowars.manager.CageManager cages = plugin.getCageManager();
+        // Resolve the cage name, falling back to the default cage when the referenced one is missing.
+        String name = cages.exists(cageValue)
+                ? dev.stoshe.aerowars.manager.CageManager.normalize(cageValue)
+                : dev.stoshe.aerowars.manager.CageManager.DEFAULT_CAGE;
+        com.hypixel.hytale.server.core.prefab.selection.standard.BlockSelection sel;
+        try {
+            sel = com.hypixel.hytale.server.core.prefab.PrefabStore.get().getPrefab(cages.pathFor(name));
+        } catch (Exception e) {
+            Console.warning("Cage build: could not load prefab '" + name + "': " + e.getMessage());
+            return;
+        }
+        if (sel == null || sel.getBlockCount() == 0) {
+            return;
+        }
+        // Rotation = the cage cosmetic's base 'rotation' (calibrates which way the front points at 0°) plus,
+        // when its 'faceMiddle' is on, the turn needed to point that front at the arena centre. Native rotate,
+        // so it matches the 3D preview exactly (positions + facings).
+        int quarters = cageRotationQuarters(name);
+        if (cageFaceMiddle(name)) {
+            quarters = (quarters + faceMiddleQuarters(match, spawn)) % 4;
+        }
+        if (quarters != 0) {
+            try {
+                sel = sel.rotate(com.hypixel.hytale.math.Axis.Y, quarters);
+            } catch (Exception ignored) {
+            }
+        }
+        final int bx = spawn.blockX();
+        final int by = spawn.blockY();
+        final int bz = spawn.blockZ();
+        final int ax = sel.getAnchorX();
+        final int ay = sel.getAnchorY();
+        final int az = sel.getAnchorZ();
+        var snaps = match.cageSnapshots.computeIfAbsent(spawnIndex,
+                k -> new java.util.concurrent.ConcurrentHashMap<>());
+        // Snapshot originals BEFORE placing (same coordinate mapping the native place() uses).
+        sel.forEachBlock((lx, ly, lz, holder) -> {
+            int wx = bx + (lx - ax);
+            int wy = by + (ly - ay);
+            int wz = bz + (lz - az);
+            String key = blockKey(wx, wy, wz);
+            if (!snaps.containsKey(key)) {
+                String origId = "Empty";
+                try {
+                    var bt = world.getBlockType(wx, wy, wz);
+                    if (bt != null && bt.getId() != null) {
+                        origId = bt.getId();
                     }
-                    String key = blockKey(x, y, z);
-                    try {
-                        if (air) {
-                            // Restore exactly what the cage overwrote (floor included), so the arena is left
-                            // untouched. No snapshot (e.g. a legacy cage) → clear the shell but keep the floor.
-                            dev.stoshe.aerowars.model.BlockSnapshot snap =
-                                    match == null ? null : match.cageBlocks.remove(key);
-                            if (snap != null) {
-                                world.setBlock(x, y, z, snap.id(), snap.rotation());
-                            } else if (y != by - 1) {
-                                world.setBlock(x, y, z, "Empty", 0);
-                            }
-                        } else {
-                            // Snapshot the original block BEFORE overwriting it, so opening the cage can put it
-                            // back verbatim. Guard against re-snapshotting our own glass on a rebuild.
-                            if (match != null && !match.cageBlocks.containsKey(key)) {
-                                String origId = "Empty";
-                                try {
-                                    var bt = world.getBlockType(x, y, z);
-                                    if (bt != null && bt.getId() != null) {
-                                        origId = bt.getId();
-                                    }
-                                } catch (Exception ignored) {
-                                }
-                                // Cages overwrite ground/air, whose rotation is irrelevant — restore with 0.
-                                match.cageBlocks.put(key, new dev.stoshe.aerowars.model.BlockSnapshot(origId, 0));
-                            }
-                            world.setBlock(x, y, z, rainbow ? randomGlassColor() : glass, 0);
-                        }
-                    } catch (Exception ignored) {
-                    }
+                } catch (Exception ignored) {
                 }
+                // Cages overwrite ground/air, whose rotation is irrelevant — restore with 0.
+                snaps.put(key, new dev.stoshe.aerowars.model.BlockSnapshot(origId, 0));
+            }
+        });
+        // Native paste: anchor aligned to the spawn block, ids + rotations reproduced by the engine.
+        try {
+            sel.place((com.hypixel.hytale.server.core.command.system.CommandSender) null, world,
+                    new org.joml.Vector3i(bx, by, bz),
+                    (com.hypixel.hytale.server.core.prefab.selection.mask.BlockMask) null);
+            // The anchor cell IS the player's spawn point, so keep it clear — a prefab that captured a block
+            // there (the spot the author stood on) would otherwise spawn the player inside it.
+            world.setBlock(bx, by, bz, "Empty", 0);
+        } catch (Exception e) {
+            Console.warning("Cage build: native place failed for '" + name + "': " + e.getMessage());
+        }
+    }
+
+    /**
+     * The quarter-turns needed to point a cage's front toward the arena centre from {@code spawn} — the centre
+     * being the middle-chests' average (else the spawns' average). Cardinal-quantised (0=−Z, 1=+X, 2=+Z,
+     * 3=−X, clockwise), matching {@link #cageRotationQuarters}. Returns 0 when there's no usable centre.
+     */
+    private int faceMiddleQuarters(Match match, WorldPos spawn) {
+        if (match == null || match.layout == null || spawn == null) {
+            return 0;
+        }
+        WorldPos centre = arenaCentre(match.layout);
+        if (centre == null) {
+            return 0;
+        }
+        double dx = centre.x - spawn.x;
+        double dz = centre.z - spawn.z;
+        if (Math.abs(dx) < 1e-6 && Math.abs(dz) < 1e-6) {
+            return 0;
+        }
+        if (Math.abs(dx) >= Math.abs(dz)) {
+            return dx > 0 ? 1 : 3; // East / West
+        }
+        return dz > 0 ? 2 : 0; // South / North
+    }
+
+    /** Arena centre for cage facing: the middle-chests' centroid, else the spawns' centroid, else null. */
+    private WorldPos arenaCentre(dev.stoshe.aerowars.model.MapLayout layout) {
+        if (layout == null) {
+            return null;
+        }
+        if (layout.middleChests != null && !layout.middleChests.isEmpty()) {
+            double sx = 0, sy = 0, sz = 0;
+            int n = 0;
+            for (dev.stoshe.aerowars.model.ChestLocation c : layout.middleChests) {
+                if (c != null && c.pos != null) {
+                    sx += c.pos.x;
+                    sy += c.pos.y;
+                    sz += c.pos.z;
+                    n++;
+                }
+            }
+            if (n > 0) {
+                return new WorldPos(sx / n, sy / n, sz / n);
+            }
+        }
+        if (layout.spawnPoints != null && !layout.spawnPoints.isEmpty()) {
+            double sx = 0, sy = 0, sz = 0;
+            int n = 0;
+            for (WorldPos p : layout.spawnPoints) {
+                if (p != null) {
+                    sx += p.x;
+                    sy += p.y;
+                    sz += p.z;
+                    n++;
+                }
+            }
+            if (n > 0) {
+                return new WorldPos(sx / n, sy / n, sz / n);
+            }
+        }
+        return null;
+    }
+
+    /** The cage's base rotation (from its cage cosmetic's {@code rotation}), as 0..3 quarter-turns (clockwise). */
+    public int cageRotationQuarters(String cageRef) {
+        int degrees = 0;
+        try {
+            dev.stoshe.aerowars.model.Cosmetic c = plugin.getCosmeticsManager().cageCosmeticFor(cageRef);
+            if (c != null) {
+                degrees = c.rotation;
+            }
+        } catch (Exception ignored) {
+        }
+        return ((degrees / 90) % 4 + 4) % 4;
+    }
+
+    /** Whether this cage should auto-face the arena centre (from its cage cosmetic's {@code faceMiddle}). */
+    private boolean cageFaceMiddle(String cageRef) {
+        try {
+            dev.stoshe.aerowars.model.Cosmetic c = plugin.getCosmeticsManager().cageCosmeticFor(cageRef);
+            return c != null && c.faceMiddle;
+        } catch (Exception ignored) {
+        }
+        return false;
+    }
+
+    /** Opens (removes) the cage at a spawn by restoring every snapshotted block, leaving the arena untouched. */
+    private void openCage(Match match, World world, int spawnIndex) {
+        if (match == null) {
+            return;
+        }
+        var snaps = match.cageSnapshots.remove(spawnIndex);
+        if (snaps == null) {
+            return;
+        }
+        for (var entry : snaps.entrySet()) {
+            dev.stoshe.aerowars.model.BlockSnapshot snap = entry.getValue();
+            int[] c = parseKey(entry.getKey());
+            try {
+                world.setBlock(c[0], c[1], c[2], snap.id(), snap.rotation());
+            } catch (Exception ignored) {
             }
         }
     }
@@ -2459,6 +3218,10 @@ public class MatchManager {
             return false;
         }
         match.selectedKits.put(playerRef.getUuid(), kit.id);
+        // Remember the choice across matches (Kits.PersistLastKit). buyKit funnels through here too.
+        if (config.Kits.PersistLastKit) {
+            kitManager.setLastKit(playerRef.getUuid(), kit.id);
+        }
         playerRef.sendMessage(ChatUtil.success(Tr.t("kit.selected", "kit", kit.displayName())));
         return true;
     }

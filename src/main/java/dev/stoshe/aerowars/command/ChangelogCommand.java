@@ -21,7 +21,7 @@ public class ChangelogCommand extends AbstractPlayerCommand {
     private final AeroWars plugin;
 
     public ChangelogCommand(@Nonnull AeroWars plugin) {
-        super("changelog", "Ver as novidades da última versão (admin)");
+        super("changelog", Tr.t("command.changelog"));
         this.plugin = plugin;
     }
 

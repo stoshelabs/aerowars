@@ -29,6 +29,11 @@ public class KitManager {
     /** Per-player unlock persistence (JSON file by default, SQL when Database.Enabled). */
     private dev.stoshe.aerowars.data.IPlayerDataRepository unlockRepo;
 
+    /** uuid -> the last kit the player selected, remembered across matches when Kits.PersistLastKit. */
+    private final Map<UUID, String> lastKits = new ConcurrentHashMap<>();
+    private volatile boolean lastKitsDirty;
+    private dev.stoshe.aerowars.data.IPlayerDataRepository lastKitRepo;
+
     public KitManager(File dataDir) {
         this.dataDir = dataDir;
         this.kitsDir = new File(dataDir, "kits");
@@ -76,12 +81,69 @@ public class KitManager {
         unlocksDirty = false;
     }
 
-    /** Flushes unlocks and releases the repository (SQL pool). Called on plugin shutdown. */
+    // ------------------------------------------------------------ last-used kit (persistence)
+
+    private dev.stoshe.aerowars.data.IPlayerDataRepository lastKitRepo() {
+        if (lastKitRepo == null) {
+            lastKitRepo = dev.stoshe.aerowars.data.PlayerDataRepositoryFactory.create(dataDir,
+                    dev.stoshe.aerowars.AeroWars.getInstance().getConfig(), "kit_last.json",
+                    "aerowars_kit_last");
+        }
+        return lastKitRepo;
+    }
+
+    /** Loads each player's last-selected kit. Call alongside {@link #loadUnlocks()}. */
+    public void loadLastKits() {
+        lastKits.clear();
+        for (Map.Entry<UUID, com.google.gson.JsonElement> e : lastKitRepo().loadAll().entrySet()) {
+            try {
+                String id = gson.fromJson(e.getValue(), String.class);
+                if (id != null && !id.isBlank()) {
+                    lastKits.put(e.getKey(), id.toLowerCase());
+                }
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private void saveLastKits() {
+        if (!lastKitsDirty) {
+            return;
+        }
+        Map<UUID, com.google.gson.JsonElement> out = new java.util.LinkedHashMap<>();
+        for (Map.Entry<UUID, String> e : lastKits.entrySet()) {
+            out.put(e.getKey(), gson.toJsonTree(e.getValue()));
+        }
+        lastKitRepo().saveAll(out);
+        lastKitsDirty = false;
+    }
+
+    /** The player's last-selected kit id, or {@code null} if they've never picked one. */
+    public String getLastKit(UUID uuid) {
+        return uuid == null ? null : lastKits.get(uuid);
+    }
+
+    /** Remembers a player's kit choice (persisted). No-op for null/blank. */
+    public void setLastKit(UUID uuid, String kitId) {
+        if (uuid == null || kitId == null || kitId.isBlank()) {
+            return;
+        }
+        lastKits.put(uuid, kitId.toLowerCase());
+        lastKitsDirty = true;
+        saveLastKits();
+    }
+
+    /** Flushes unlocks + last-kit state and releases the repositories (SQL pool). Called on plugin shutdown. */
     public void shutdown() {
         unlocksDirty = true;
         saveUnlocks();
         if (unlockRepo != null) {
             unlockRepo.close();
+        }
+        lastKitsDirty = true;
+        saveLastKits();
+        if (lastKitRepo != null) {
+            lastKitRepo.close();
         }
     }
 

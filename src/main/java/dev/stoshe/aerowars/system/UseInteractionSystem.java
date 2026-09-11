@@ -12,6 +12,7 @@ import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.event.events.ecs.UseBlockEvent;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import dev.stoshe.aerowars.game.Match;
 import dev.stoshe.aerowars.manager.MatchManager;
 import dev.stoshe.aerowars.manager.SetupSessionManager;
 import dev.stoshe.aerowars.model.WorldPos;
@@ -46,29 +47,39 @@ public class UseInteractionSystem extends EntityEventSystem<EntityStore, UseBloc
             return;
         }
         UUID uuid = playerRef.getUuid();
-        // Spectator hotbar: RIGHT-click a block with a spec tool fires its action (tracker/lobby). The AIR
-        // case is handled by PlayerMouseButtonEvent; this is the block path.
-        if (matchManager.trySpectatorItemClick(playerRef, store)) {
+
+        // Spectators (dead-player OR hidden admin) can't USE blocks — no opening chests/doors. Checked first
+        // (an admin spectator has no playerMatch entry). Fire their hotbar-tool action, then swallow the use.
+        if (matchManager.isAnySpectator(uuid)) {
+            matchManager.trySpectatorItemClick(playerRef, store);
             event.setCancelled(true);
             return;
         }
-        if (!setupManager.hasSession(uuid)) {
+
+        // Waiting hotbar: RIGHT-click a block with a kit tool fires its action instead of a block use.
+        if (matchManager.tryWaitingItemClick(playerRef, store)) {
+            event.setCancelled(true);
             return;
         }
-        InteractionType type = event.getInteractionType();
-        if (type != InteractionType.Secondary && type != InteractionType.Use) {
+
+        if (setupManager.hasSession(uuid)) {
+            InteractionType type = event.getInteractionType();
+            if (type == InteractionType.Secondary || type == InteractionType.Use) {
+                Ref<EntityStore> ref = playerRef.getReference();
+                Player player = store.getComponent(ref, Player.getComponentType());
+                // Swallow the block-aimed right-click so the wand doesn't trigger a use; spawn removal is
+                // handled by the interaction watcher (MatchManager.onInteraction) so it works in air too.
+                if (player != null && setupManager.isHoldingWand(player.getInventory().getItemInHand())) {
+                    event.setCancelled(true);
+                }
+            }
             return;
         }
-        Ref<EntityStore> ref = playerRef.getReference();
-        Player player = store.getComponent(ref, Player.getComponentType());
-        if (player == null || !setupManager.isHoldingWand(player.getInventory().getItemInHand())) {
-            return;
+
+        // Before the cages drop (waiting/countdown), players can't open chests/doors either.
+        Match match = matchManager.getPlayerMatch(uuid);
+        if (match != null && !match.state.isRunning()) {
+            event.setCancelled(true);
         }
-        Vector3i pos = event.getTargetBlock();
-        if (pos == null) {
-            return;
-        }
-        event.setCancelled(true);
-        setupManager.handleSpawnRemoveAt(playerRef, new WorldPos(pos.x, pos.y, pos.z));
     }
 }

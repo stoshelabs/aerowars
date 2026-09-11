@@ -24,7 +24,7 @@ public class SetLobbyCommand extends AbstractPlayerCommand {
     private final AeroWars plugin;
 
     public SetLobbyCommand(@Nonnull AeroWars plugin) {
-        super("setlobby", "Definir o lobby do AeroWars na sua posição (admin)");
+        super("setlobby", Tr.t("command.setlobby"));
         this.plugin = plugin;
     }
 

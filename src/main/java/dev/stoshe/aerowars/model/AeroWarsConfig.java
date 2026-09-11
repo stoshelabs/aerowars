@@ -43,6 +43,12 @@ public final class AeroWarsConfig {
      */
     public static final class Spectator {
         public boolean Enabled = true;
+        /**
+         * Run spectators on Hytale 0.6's native spectator game mode ({@code AeroWars_Spectator}): the engine
+         * enforces flight, no-clip, invulnerability, intangibility and hiding from living players. Off — or if
+         * the mode can't be entered — AeroWars applies its own flight + invulnerability + per-player hiding.
+         */
+        public boolean NativeMode = true;
         /** Hotbar slot (0-8) and item id of the "track living players" tool. */
         public int TrackerSlot = 0;
         public String TrackerItem = "AeroWars_SpecTracker";
@@ -121,22 +127,38 @@ public final class AeroWarsConfig {
         public int MaxDurationSeconds = 900;
         public int CountdownSeconds = 15;
         public int StartGraceSeconds = 3;
-        public int EndCelebrationSeconds = 30;
+        public int EndCelebrationSeconds = 15;
         public int EmptyMatchDeletionSeconds = 30;
         public boolean FriendlyFire = false;
         public boolean AllowSpectators = true;
         public boolean SpectateOnDeath = true;
         /** Save the player's inventory + game mode on join and restore it when they leave/finish. */
         public boolean SaveInventory = true;
+        /**
+         * Randomize which island (spawn point) each player/team starts on. When off, teams fill the
+         * islands in order (island 1, 2, 3, ...); when on, the island each team gets is shuffled per
+         * match so players don't always start on the first spawns.
+         */
+        public boolean RandomizeSpawns = true;
+        /**
+         * Tell everyone on the server who isn't in the match who won it, and on which arena
+         * ({@code match.win_announce_*} in the language files). Players in the match get their own in-match
+         * line either way.
+         */
+        public boolean AnnounceWinner = true;
     }
 
     public static final class Cages {
         public boolean Enabled = true;
-        /** Cage block. AeroWars ships a custom "Glass_Block" (+ colours: Glass_Block_Red, _Blue,
-         *  _Green, _Cyan, _Yellow, _Lime, _Orange, _Pink, _Purple, _Magenta, _White, _Black). */
-        public String BlockId = "Glass_Block";
-        public int Radius = 1;
-        public int Height = 2;
+        /**
+         * Seconds of fall-damage immunity granted to everyone from the moment the match starts (the
+         * cages drop). Meant for arenas whose cages sit high above the island, so opening them doesn't
+         * chunk (or kill) players on the initial drop. Only fall damage is waived — all other damage
+         * is normal — and only for this window; afterwards fall damage resumes. Set to 0 to disable.
+         */
+        public int FallImmunitySeconds = 5;
+        // Per-cage orientation (rotation + faceMiddle) lives on each CAGE cosmetic in cosmetics.json, so a
+        // cage's full definition stays in one place. See Cosmetic.rotation / Cosmetic.faceMiddle.
     }
 
     public static final class Loot {
@@ -197,6 +219,24 @@ public final class AeroWarsConfig {
         public boolean Enabled = true;
         public String DefaultKit = "warrior";
         public boolean SelectionDuringCountdown = true;
+        /**
+         * Remember each player's last-selected kit across matches: on re-join they keep that kit until they
+         * pick another (via the kit menu). When off, every match starts on {@link #DefaultKit} until the
+         * player selects. A remembered kit the player no longer has unlocked falls back to the default.
+         */
+        public boolean PersistLastKit = true;
+
+        /**
+         * Give waiting players (in their cage, before the match starts) a locked hotbar: a kit-selector
+         * item that opens the kit menu and a return-to-lobby item — the same idea as the spectator hotbar.
+         * Both are non-droppable and removed when the match starts so kits are handed out cleanly.
+         */
+        public boolean WaitingItems = true;
+        public String SelectorItem = "AeroWars_KitSelector";
+        public int SelectorSlot = 0;
+        /** Reuses the spectator return-to-lobby item by default. */
+        public String LobbyItem = "AeroWars_SpecLobby";
+        public int LobbySlot = 8;
     }
 
     public static final class Rewards {
@@ -243,6 +283,11 @@ public final class AeroWarsConfig {
         Database = other.Database;
     }
 
+    /** The winner broadcasts older versions wrote into WinnerCommands by default (see {@link #normalize}). */
+    private static final List<String> LEGACY_WIN_BROADCASTS = List.of(
+            "broadcast &6{player} {#ffffff}won the match on &e{arena}&f!",
+            "broadcast &6{player} {#ffffff}venceu a partida em &e{arena}&f!");
+
     /** Fills nulls left by a sparse config file so callers never NPE. */
     public void normalize() {
         if (General == null) General = new General();
@@ -255,6 +300,9 @@ public final class AeroWarsConfig {
         if (Kits == null) Kits = new Kits();
         if (Rewards == null) Rewards = new Rewards();
         if (Rewards.WinnerCommands == null) Rewards.WinnerCommands = new ArrayList<>();
+        // The winner announcement used to ship as a default reward command with its text baked in, in one
+        // language. It is Match.AnnounceWinner now, translated — drop the old default so it isn't sent twice.
+        Rewards.WinnerCommands.removeIf(LEGACY_WIN_BROADCASTS::contains);
         if (Rewards.Economy == null) Rewards.Economy = new Economy();
         if (Scoreboard == null) Scoreboard = new Scoreboard();
         if (Effects == null) Effects = new Effects();

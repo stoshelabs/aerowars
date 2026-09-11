@@ -119,26 +119,4 @@ public class ArenaManager {
         return arenas.values().stream().filter(mapManager::isArenaPlayable).collect(Collectors.toList());
     }
 
-    /**
-     * Clears the chests on the arena's PRIMARY map (both tiers) and drafts the arena. Used by the admin
-     * panel. Chests live per-map now, so this affects every arena sharing that map; the arena is drafted
-     * so matchmaking skips it until chests are re-added via setup.
-     */
-    public boolean clearChests(String name) {
-        Arena arena = getArena(name);
-        if (arena == null) {
-            return false;
-        }
-
-        dev.stoshe.aerowars.model.MapLayout layout = mapManager.getLayout(arena.worldTemplate);
-        if (layout != null) {
-            layout.normalChests.clear();
-            layout.middleChests.clear();
-            mapManager.saveMap(layout);
-        }
-
-        arena.draft = true;
-        saveArena(arena);
-        return true;
-    }
 }

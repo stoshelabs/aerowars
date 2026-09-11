@@ -288,7 +288,7 @@ public class LootManager {
                 }
             }
             // Persist across chunk save/unload.
-            chunk.getBlockComponentChunk().markNeedsSaving();
+            chunk.markNeedsSaving();
             return true;
         } catch (Exception e) {
             Console.warning("[loot] Failed to fill chest " + at + ": " + e);

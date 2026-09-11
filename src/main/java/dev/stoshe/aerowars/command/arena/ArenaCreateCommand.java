@@ -37,13 +37,13 @@ public class ArenaCreateCommand extends AbstractPlayerCommand {
     private final OptionalArg<Integer> teamSizeArg;
 
     public ArenaCreateCommand(@Nonnull AeroWars plugin) {
-        super("create", "Criar uma arena sobre um mapa configurado (admin)");
+        super("create", Tr.t("command.arena.create"));
         this.arenaManager = plugin.getArenaManager();
         this.mapManager = plugin.getMapManager();
-        this.nameArg = withRequiredArg("nome", "Nome da arena", ArgTypes.STRING);
-        this.mapArg = withRequiredArg("mapa", "Mapa (template) já configurado", ArgTypes.STRING)
+        this.nameArg = withRequiredArg("name", Tr.t("command.arg.arena_new"), ArgTypes.STRING);
+        this.mapArg = withRequiredArg("map", Tr.t("command.arg.map"), ArgTypes.STRING)
                 .withSuggestionOverride(new MapArgType(mapManager));
-        this.modeArg = withRequiredArg("modo", "solo | teams", ArgTypes.STRING)
+        this.modeArg = withRequiredArg("mode", Tr.t("command.arg.mode"), ArgTypes.STRING)
                 .withSuggestionOverride(new ChoiceArgType("modo", "solo", "teams"));
         // Arg label + help come from the configured language (loaded before commands are registered).
         this.teamSizeArg = withOptionalArg(Tr.t("arena.arg_size_name"), Tr.t("arena.arg_size_desc"), ArgTypes.INTEGER);

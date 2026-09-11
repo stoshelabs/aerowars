@@ -3,6 +3,7 @@ package dev.stoshe.aerowars.game;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import dev.stoshe.aerowars.util.Tr;
 
 /** Runtime team within a match. In SOLO mode each player is their own team. */
 public final class Team {
@@ -15,8 +16,9 @@ public final class Team {
     private final Set<UUID> members = ConcurrentHashMap.newKeySet();
     private final Set<UUID> alive = ConcurrentHashMap.newKeySet();
 
-    private static final String[] NAMES = {
-            "Vermelho", "Azul", "Verde", "Amarelo", "Rosa", "Ciano", "Laranja", "Branco"
+    /** Lang keys ({@code team.name.<colour>}); the display name is resolved in the server's language. */
+    private static final String[] NAME_KEYS = {
+            "red", "blue", "green", "yellow", "pink", "cyan", "orange", "white"
     };
     private static final String[] COLORS = {
             "#ff5555", "#5599ff", "#55ff55", "#ffff55", "#ff55ff", "#55ffff", "#ffaa00", "#ffffff"
@@ -25,7 +27,7 @@ public final class Team {
     public Team(int index, int spawnIndex) {
         this.index = index;
         this.spawnIndex = spawnIndex;
-        this.name = NAMES[index % NAMES.length];
+        this.name = Tr.t("team.name." + NAME_KEYS[index % NAME_KEYS.length]);
         this.colorHex = COLORS[index % COLORS.length];
     }
 

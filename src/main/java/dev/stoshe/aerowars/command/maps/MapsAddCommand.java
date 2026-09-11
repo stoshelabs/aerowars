@@ -31,13 +31,13 @@ public class MapsAddCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> mapArg;
 
     public MapsAddCommand(@Nonnull AeroWars plugin) {
-        super("add", "Adicionar um mapa ao pool da arena (admin)");
+        super("add", Tr.t("command.maps.add"));
         this.arenaManager = plugin.getArenaManager();
         this.mapManager = plugin.getMapManager();
         this.worldManager = plugin.getWorldManager();
-        this.arenaArg = withRequiredArg("arena", "Nome da arena", ArgTypes.STRING)
+        this.arenaArg = withRequiredArg("arena", Tr.t("command.arg.arena"), ArgTypes.STRING)
                 .withSuggestionOverride(new ArenaArgType(arenaManager));
-        this.mapArg = withRequiredArg("mapa", "Mapa (template) configurado", ArgTypes.STRING)
+        this.mapArg = withRequiredArg("map", Tr.t("command.arg.map"), ArgTypes.STRING)
                 .withSuggestionOverride(new MapArgType(mapManager));
     }
 

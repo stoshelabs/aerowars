@@ -26,7 +26,7 @@ import javax.annotation.Nonnull;
 public class AeroAdminConfirmPopupPage extends InteractiveCustomUIPage<AeroAdminConfirmPopupPage.PageData> {
 
     public enum ActionType {
-        DELETE_ARENA, CLEAR_CHESTS, DELETE_KIT
+        DELETE_ARENA, DELETE_KIT, DELETE_CAGE
     }
 
     private final PlayerRef playerRef;
@@ -51,12 +51,12 @@ public class AeroAdminConfirmPopupPage extends InteractiveCustomUIPage<AeroAdmin
         return new AeroAdminConfirmPopupPage(p, w, plugin, ActionType.DELETE_ARENA, arena);
     }
 
-    public static AeroAdminConfirmPopupPage forClearChests(PlayerRef p, World w, AeroWars plugin, String arena) {
-        return new AeroAdminConfirmPopupPage(p, w, plugin, ActionType.CLEAR_CHESTS, arena);
-    }
-
     public static AeroAdminConfirmPopupPage forDeleteKit(PlayerRef p, World w, AeroWars plugin, String kitId) {
         return new AeroAdminConfirmPopupPage(p, w, plugin, ActionType.DELETE_KIT, kitId);
+    }
+
+    public static AeroAdminConfirmPopupPage forDeleteCage(PlayerRef p, World w, AeroWars plugin, String cageName) {
+        return new AeroAdminConfirmPopupPage(p, w, plugin, ActionType.DELETE_CAGE, cageName);
     }
 
     @Override
@@ -78,9 +78,9 @@ public class AeroAdminConfirmPopupPage extends InteractiveCustomUIPage<AeroAdmin
                 confirm = Tr.t("admin.confirm_delete_kit_btn");
             }
             default -> {
-                title = Tr.t("admin.confirm_clear_chests_title");
-                message = Tr.t("admin.confirm_clear_chests_msg", "arena", safe(this.arena));
-                confirm = Tr.t("admin.confirm_clear_chests_btn");
+                title = Tr.t("admin.confirm_delete_cage_title");
+                message = Tr.t("admin.confirm_delete_cage_msg", "cage", safe(this.arena));
+                confirm = Tr.t("admin.confirm_delete_cage_btn");
             }
         }
         commandBuilder.set("#ConfirmPopupTitle.Text", title);
@@ -113,19 +113,25 @@ public class AeroAdminConfirmPopupPage extends InteractiveCustomUIPage<AeroAdmin
                         this.playerRef.sendMessage(ChatUtil.success(Tr.t("admin.arena_deleted", "arena", safe(this.arena))));
                     }
                 }
-                case CLEAR_CHESTS -> {
-                    if (this.plugin.getArenaManager().clearChests(this.arena)) {
-                        this.playerRef.sendMessage(ChatUtil.success(Tr.t("admin.chests_cleared", "arena", safe(this.arena))));
-                    }
-                }
                 case DELETE_KIT -> {
                     if (this.plugin.getKitManager().deleteKit(this.arena)) {
                         this.playerRef.sendMessage(ChatUtil.success(Tr.t("admin.kit_deleted", "kit", safe(this.arena))));
                     }
                 }
+                case DELETE_CAGE -> {
+                    if (this.plugin.getCageManager().deleteCage(this.arena)) {
+                        this.playerRef.sendMessage(ChatUtil.success(Tr.t("admin.cage_deleted", "cage", safe(this.arena))));
+                    } else {
+                        this.playerRef.sendMessage(ChatUtil.error(Tr.t("admin.cage_delete_failed", "cage", safe(this.arena))));
+                    }
+                }
             }
         }
-        String returnTab = this.actionType == ActionType.DELETE_KIT ? "kits" : "arenas";
+        String returnTab = switch (this.actionType) {
+            case DELETE_KIT -> "kits";
+            case DELETE_CAGE -> "cages";
+            default -> "arenas";
+        };
         AeroAdminPage.open(player, ref, store, this.playerRef, world, this.plugin, returnTab);
     }
 

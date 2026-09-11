@@ -1,5 +1,7 @@
 package dev.stoshe.aerowars.command;
 
+import dev.stoshe.aerowars.util.Tr;
+
 import com.hypixel.hytale.server.core.command.system.CommandSender;
 import com.hypixel.hytale.server.core.command.system.ParseResult;
 import com.hypixel.hytale.server.core.command.system.arguments.types.SingleArgumentType;
@@ -13,7 +15,7 @@ public class TemplateArgType extends SingleArgumentType<String> {
     private final WorldManager worldManager;
 
     public TemplateArgType(@Nonnull WorldManager worldManager) {
-        super("template", "Template de mundo existente");
+        super("template", Tr.t("command.arg.template"));
         this.worldManager = worldManager;
     }
 

@@ -1,5 +1,7 @@
 package dev.stoshe.aerowars.command;
 
+import dev.stoshe.aerowars.util.Tr;
+
 import com.hypixel.hytale.server.core.command.system.CommandSender;
 import com.hypixel.hytale.server.core.command.system.ParseResult;
 import com.hypixel.hytale.server.core.command.system.arguments.types.SingleArgumentType;
@@ -14,7 +16,7 @@ public class KitArgType extends SingleArgumentType<String> {
     private final KitManager kitManager;
 
     public KitArgType(@Nonnull KitManager kitManager) {
-        super("kit", "ID de um kit existente");
+        super("kit", Tr.t("command.arg.kit"));
         this.kitManager = kitManager;
     }
 

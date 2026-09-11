@@ -1,5 +1,7 @@
 package dev.stoshe.aerowars.command;
 
+import dev.stoshe.aerowars.util.Tr;
+
 import com.hypixel.hytale.server.core.command.system.CommandSender;
 import com.hypixel.hytale.server.core.command.system.ParseResult;
 import com.hypixel.hytale.server.core.command.system.arguments.types.SingleArgumentType;
@@ -13,7 +15,7 @@ public class MapArgType extends SingleArgumentType<String> {
     private final MapManager mapManager;
 
     public MapArgType(@Nonnull MapManager mapManager) {
-        super("map", "Mapa (template) já configurado");
+        super("map", Tr.t("command.arg.map"));
         this.mapManager = mapManager;
     }
 

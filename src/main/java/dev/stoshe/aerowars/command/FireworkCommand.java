@@ -23,10 +23,10 @@ public class FireworkCommand extends AbstractPlayerCommand {
     private final OptionalArg<String> modeArg;
 
     public FireworkCommand(@Nonnull AeroWars plugin) {
-        super("firework", "Debug de firework (admin)");
+        super("firework", Tr.t("command.firework"));
         addAliases("fw");
         this.matchManager = plugin.getMatchManager();
-        this.modeArg = withOptionalArg("modo", "'show' para o show completo", ArgTypes.STRING);
+        this.modeArg = withOptionalArg("mode", Tr.t("command.arg.firework_mode"), ArgTypes.STRING);
     }
 
     @Override

@@ -26,9 +26,9 @@ public class SetupUndoCommand extends AbstractPlayerCommand {
     private final OptionalArg<Integer> countArg;
 
     public SetupUndoCommand(@Nonnull AeroWars plugin) {
-        super("undo", "Desfazer o(s) último(s) spawn/baú do passo");
+        super("undo", Tr.t("command.setup.undo"));
         this.setupManager = plugin.getSetupSessionManager();
-        this.countArg = withOptionalArg("quantidade", "Quantos desfazer (padrão 1)", ArgTypes.INTEGER);
+        this.countArg = withOptionalArg("amount", Tr.t("command.arg.amount_undo"), ArgTypes.INTEGER);
     }
 
     @Override

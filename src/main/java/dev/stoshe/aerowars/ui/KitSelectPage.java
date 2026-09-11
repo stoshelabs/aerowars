@@ -18,6 +18,7 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import dev.stoshe.aerowars.AeroWars;
+import dev.stoshe.aerowars.manager.KitManager;
 import dev.stoshe.aerowars.model.Kit;
 import dev.stoshe.aerowars.model.KitItem;
 import dev.stoshe.aerowars.util.Tr;
@@ -25,28 +26,35 @@ import dev.stoshe.aerowars.util.Tr;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
- * Kit picker modal ({@code /aerowars kit} with no id): lists kits, lets you View a kit's contents
- * (all items) and Select one to apply.
+ * Kit picker modal ({@code /aerowars kit} with no id), styled like the cosmetics shop: an ownership filter
+ * (all / owned / to-buy), a per-kit icon, and the kit currently in effect flagged as "in use". You can View
+ * a kit's contents (all items) and Select / Buy one to apply.
  */
 public class KitSelectPage extends InteractiveCustomUIPage<KitSelectPage.PageData> {
 
     private static final int KIT_ROWS = 10;
     private static final int ITEM_ROWS = 12;
 
+    /** Ownership filter applied to the kit list. */
+    private enum Filter { ALL, OWNED, TOBUY }
+
     private final PlayerRef playerRef;
     private final World sourceWorld;
     private final AeroWars plugin;
     private final String detailKitId;
+    private final Filter filter;
     private List<Kit> kitView = new ArrayList<>();
 
-    private KitSelectPage(PlayerRef p, World w, AeroWars plugin, String detailKitId) {
+    private KitSelectPage(PlayerRef p, World w, AeroWars plugin, String detailKitId, Filter filter) {
         super(p, CustomPageLifetime.CanDismissOrCloseThroughInteraction, PageData.CODEC);
         this.playerRef = p;
         this.sourceWorld = w;
         this.plugin = plugin;
         this.detailKitId = detailKitId;
+        this.filter = filter == null ? Filter.ALL : filter;
     }
 
     public static void open(Player player, Ref<EntityStore> ref, Store<EntityStore> store, PlayerRef playerRef,
@@ -55,7 +63,7 @@ public class KitSelectPage extends InteractiveCustomUIPage<KitSelectPage.PageDat
             return;
         }
         player.getPageManager().openCustomPage(ref, store,
-                (CustomUIPage) new KitSelectPage(playerRef, world, plugin, null));
+                (CustomUIPage) new KitSelectPage(playerRef, world, plugin, null, Filter.ALL));
     }
 
     @Override
@@ -77,33 +85,88 @@ public class KitSelectPage extends InteractiveCustomUIPage<KitSelectPage.PageDat
         }
     }
 
+    /** The kit id currently in effect for this player (their match pick, else remembered, else default). */
+    private String currentKitId() {
+        String id = this.plugin.getMatchManager().selectedKitId(this.playerRef.getUuid());
+        return id == null ? "" : id;
+    }
+
+    private static boolean sameKit(Kit kit, String id) {
+        return kit != null && kit.id != null && kit.id.equalsIgnoreCase(id);
+    }
+
     private void buildList(UICommandBuilder cb, UIEventBuilder eb) {
         cb.set("#KitSubtitle.Text", Tr.t("kitui.subtitle"));
-        this.kitView = this.plugin.getKitManager().getAllKits();
-        cb.set("#KitEmpty.Visible", this.kitView.isEmpty());
-        cb.set("#KitEmpty.Text", Tr.t("kitui.empty"));
+
+        // Coin balance (only when a balance-capable economy is present), for the priced kits.
+        double bal = this.plugin.getEconomyService().balance(this.playerRef.getUuid());
+        cb.set("#KitBalance.Text", bal >= 0 ? Tr.t("cosmetics.balance", "n", String.valueOf((long) bal)) : "");
+
+        filterButton(cb, eb, "#KitFilterAll", Tr.t("kitui.filter_all"), this.filter == Filter.ALL, "FilterAll");
+        filterButton(cb, eb, "#KitFilterOwned", Tr.t("kitui.filter_owned"), this.filter == Filter.OWNED, "FilterOwned");
+        filterButton(cb, eb, "#KitFilterBuy", Tr.t("kitui.filter_buy"), this.filter == Filter.TOBUY, "FilterBuy");
+
+        KitManager km = this.plugin.getKitManager();
+        UUID uuid = this.playerRef.getUuid();
+        String currentId = currentKitId();
+        List<Kit> all = km.getAllKits();
+        this.kitView = applyFilter(km, uuid, all);
+        boolean empty = this.kitView.isEmpty();
+        cb.set("#KitEmpty.Visible", empty);
+        if (empty) {
+            // "No kits configured" only when there genuinely are none; otherwise the current filter just
+            // has nothing to show (e.g. you already own everything, or nothing left to buy).
+            cb.set("#KitEmpty.Text", Tr.t(all.isEmpty() ? "kitui.empty" : "kitui.empty_filter"));
+        }
+
         String viewLabel = Tr.t("kitui.view");
-        java.util.UUID uuid = this.playerRef.getUuid();
         for (int i = 0; i < KIT_ROWS; i++) {
             if (i < this.kitView.size()) {
                 Kit kit = this.kitView.get(i);
+                boolean selected = sameKit(kit, currentId);
                 int items = kit.items == null ? 0 : kit.items.size();
                 cb.set("#KitRow" + i + ".Visible", true);
+                if (kit.iconItem != null && !kit.iconItem.isBlank()) {
+                    cb.set("#KitIcon" + i + ".ItemId", kit.iconItem);
+                } else {
+                    cb.clear("#KitIcon" + i + ".ItemId");
+                }
                 cb.set("#KitName" + i + ".Text", kit.displayName());
-                cb.set("#KitInfo" + i + ".Text", Tr.t("kitui.items", "n", items));
+                cb.set("#KitInfo" + i + ".Text", Tr.t("kitui.items", "n", items) + "  ·  " + statusLabel(km, uuid, kit));
+                cb.set("#KitTag" + i + ".Text", selected ? Tr.t("kitui.tag_selected") : "");
                 cb.set("#BtnKitView" + i + ".Text", viewLabel);
                 eb.addEventBinding(CustomUIEventBindingType.Activating, "#BtnKitView" + i,
                         EventData.of("Action", "View").append("Param", kit.id), false);
-                applyActionButton(cb, eb, "#BtnKitSelect" + i, kit, uuid);
+                applyActionButton(cb, eb, "#BtnKitSelect" + i, kit, uuid, selected);
             } else {
                 cb.set("#KitRow" + i + ".Visible", false);
             }
         }
     }
 
-    /** Sets a kit's action button to Select / Buy(cost) / Locked based on the player's unlock state. */
+    /** A short ownership/price word for the info line: In use is shown separately via the tag. */
+    private String statusLabel(KitManager km, UUID uuid, Kit kit) {
+        boolean unlocked = km.isUnlocked(uuid, kit);
+        if (unlocked) {
+            return kit.isFree() ? Tr.t("kitui.status_free") : Tr.t("kitui.status_owned");
+        }
+        if (kit.isPurchase()) {
+            return Tr.t("kitui.status_cost", "n", String.valueOf(kit.cost));
+        }
+        return Tr.t("kitui.status_perm");
+    }
+
+    /**
+     * Sets a kit's action button: In use (current kit, not clickable) / Select / Buy(cost) / Locked, based
+     * on the player's unlock state.
+     */
     private void applyActionButton(UICommandBuilder cb, UIEventBuilder eb, String selector, Kit kit,
-            java.util.UUID uuid) {
+            UUID uuid, boolean selected) {
+        if (selected) {
+            // Currently equipped: show it as selected and leave it non-clickable (nothing to do).
+            cb.set(selector + ".Text", Tr.t("kitui.selected"));
+            return;
+        }
         boolean unlocked = this.plugin.getKitManager().isUnlocked(uuid, kit);
         if (unlocked) {
             cb.set(selector + ".Text", Tr.t("kitui.select"));
@@ -119,11 +182,35 @@ public class KitSelectPage extends InteractiveCustomUIPage<KitSelectPage.PageDat
         }
     }
 
+    /** Narrows the kit list to the selected ownership filter (owned = unlocked; to-buy = locked purchasable). */
+    private List<Kit> applyFilter(KitManager km, UUID uuid, List<Kit> all) {
+        if (this.filter == Filter.ALL) {
+            return all;
+        }
+        List<Kit> out = new ArrayList<>();
+        for (Kit kit : all) {
+            boolean unlocked = km.isUnlocked(uuid, kit);
+            if (this.filter == Filter.OWNED ? unlocked : (!unlocked && kit.isPurchase())) {
+                out.add(kit);
+            }
+        }
+        return out;
+    }
+
+    private void filterButton(UICommandBuilder cb, UIEventBuilder eb, String selector, String text, boolean active,
+            String action) {
+        // Active filter shown with ASCII brackets (the game font renders no ●/○ glyph — it drew as "?").
+        cb.set(selector + ".Text", active ? "[ " + text + " ]" : text);
+        eb.addEventBinding(CustomUIEventBindingType.Activating, selector, EventData.of("Action", action), false);
+    }
+
     private void buildDetail(UICommandBuilder cb, UIEventBuilder eb, Kit kit) {
         cb.set("#KitDetailTitle.Text", kit.displayName());
+        boolean selected = sameKit(kit, currentKitId());
+        cb.set("#KitDetailTag.Text", selected ? Tr.t("kitui.tag_selected") : "");
         cb.set("#BtnKitBack.Text", Tr.t("party.ui_btn_back"));
         eb.addEventBinding(CustomUIEventBindingType.Activating, "#BtnKitBack", EventData.of("Action", "Back"), false);
-        applyActionButton(cb, eb, "#BtnKitDetailSelect", kit, this.playerRef.getUuid());
+        applyActionButton(cb, eb, "#BtnKitDetailSelect", kit, this.playerRef.getUuid(), selected);
 
         List<KitItem> items = kit.items == null ? new ArrayList<>() : kit.items;
         cb.set("#KitItemEmpty.Visible", items.isEmpty());
@@ -138,9 +225,9 @@ public class KitSelectPage extends InteractiveCustomUIPage<KitSelectPage.PageDat
                 } else {
                     cb.clear("#KitItemIcon" + i + ".ItemId");
                 }
-                cb.set("#KitItemName" + i + ".Text", prettyItem(it.itemId));
+                cb.set("#KitItemName" + i + ".TextSpans", KitLabels.itemName(it.itemId));
                 cb.set("#KitItemQty" + i + ".Text", "x" + Math.max(1, it.count));
-                cb.set("#KitItemSlot" + i + ".Text", containerName(it.container));
+                cb.set("#KitItemSlot" + i + ".Text", KitLabels.section(it.container));
             } else {
                 cb.set("#KitItemRow" + i + ".Visible", false);
             }
@@ -158,10 +245,11 @@ public class KitSelectPage extends InteractiveCustomUIPage<KitSelectPage.PageDat
         String param = safe(data.param).trim();
         switch (action) {
             case "Close" -> player.getPageManager().setPage(ref, store, Page.None);
-            case "View" -> player.getPageManager().openCustomPage(ref, store,
-                    (CustomUIPage) new KitSelectPage(this.playerRef, resolveWorld(player), this.plugin, param));
-            case "Back" -> player.getPageManager().openCustomPage(ref, store,
-                    (CustomUIPage) new KitSelectPage(this.playerRef, resolveWorld(player), this.plugin, null));
+            case "View" -> openPage(player, ref, store, param, this.filter);
+            case "Back" -> openPage(player, ref, store, null, this.filter);
+            case "FilterAll" -> openPage(player, ref, store, null, Filter.ALL);
+            case "FilterOwned" -> openPage(player, ref, store, null, Filter.OWNED);
+            case "FilterBuy" -> openPage(player, ref, store, null, Filter.TOBUY);
             case "Select" -> {
                 if (!param.isEmpty()) {
                     this.plugin.getMatchManager().selectKit(this.playerRef, param);
@@ -172,30 +260,21 @@ public class KitSelectPage extends InteractiveCustomUIPage<KitSelectPage.PageDat
                 if (!param.isEmpty()) {
                     this.plugin.getMatchManager().buyKit(this.playerRef, param);
                 }
-                // Reopen the list so the row reflects the new (unlocked/selected) state.
-                player.getPageManager().openCustomPage(ref, store,
-                        (CustomUIPage) new KitSelectPage(this.playerRef, resolveWorld(player), this.plugin, null));
+                // Reopen the list so the rows reflect the new (unlocked / in-use) state.
+                openPage(player, ref, store, null, this.filter);
             }
             default -> {
             }
         }
     }
 
-    /** "Weapon_Sword_Iron" -> "Weapon Sword Iron" for readable display. */
-    private static String prettyItem(String id) {
-        return id == null ? "?" : id.replace('_', ' ');
+    private void openPage(Player player, Ref<EntityStore> ref, Store<EntityStore> store, String detailKitId,
+            Filter filter) {
+        player.getPageManager().openCustomPage(ref, store,
+                (CustomUIPage) new KitSelectPage(this.playerRef, resolveWorld(player), this.plugin, detailKitId, filter));
     }
 
-    private static String containerName(int container) {
-        return switch (container) {
-            case KitItem.STORAGE -> "inventory";
-            case KitItem.BACKPACK -> "backpack";
-            case KitItem.ARMOR -> "armor";
-            case KitItem.UTILITY -> "utility";
-            case KitItem.TOOLS -> "tools";
-            default -> "hotbar";
-        };
-    }
+    /** "Weapon_Sword_Iron" -> "Weapon Sword Iron" for readable display. */
 
     private World resolveWorld(Player player) {
         try {

@@ -24,7 +24,7 @@ public class ArenaListCommand extends AbstractPlayerCommand {
     private final MapManager mapManager;
 
     public ArenaListCommand(@Nonnull AeroWars plugin) {
-        super("list", "Listar todas as arenas (admin)");
+        super("list", Tr.t("command.arena.list"));
         this.arenaManager = plugin.getArenaManager();
         this.mapManager = plugin.getMapManager();
     }

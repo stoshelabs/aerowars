@@ -27,11 +27,11 @@ public class MapsRandomCommand extends AbstractPlayerCommand {
     private final RequiredArg<String> valueArg;
 
     public MapsRandomCommand(@Nonnull AeroWars plugin) {
-        super("random", "Ligar/desligar rotação aleatória de mapas (admin)");
+        super("random", Tr.t("command.maps.random"));
         this.arenaManager = plugin.getArenaManager();
-        this.arenaArg = withRequiredArg("arena", "Nome da arena", ArgTypes.STRING)
+        this.arenaArg = withRequiredArg("arena", Tr.t("command.arg.arena"), ArgTypes.STRING)
                 .withSuggestionOverride(new ArenaArgType(arenaManager));
-        this.valueArg = withRequiredArg("valor", "on | off", ArgTypes.STRING)
+        this.valueArg = withRequiredArg("valor", Tr.t("command.arg.on_off"), ArgTypes.STRING)
                 .withSuggestionOverride(new ChoiceArgType("valor", "on", "off"));
     }
 
